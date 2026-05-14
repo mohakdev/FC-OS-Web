@@ -17,90 +17,122 @@ export type DashboardNavItem = {
   description: string;
   href: string;
   badge?: string;
+  disabled?: boolean;
+};
+
+export type DashboardNavSection = {
+  id: string;
+  label: string;
+  items: DashboardNavItem[];
+};
+
+export type DashboardSidebarConfig = {
+  sections: DashboardNavSection[];
+  footerItems: DashboardNavItem[];
 };
 
 const DASHBOARD_ROOT = "/dashboard";
 
-const createDashboardHref = (id: string) =>
-  id === "dashboard" ? DASHBOARD_ROOT : `${DASHBOARD_ROOT}/${id}`;
-
-export const overviewItems: DashboardNavItem[] = [
-  {
-    id: "dashboard",
-    label: "Dashboard",
-    icon: LayoutDashboard,
-    href: createDashboardHref("dashboard"),
-    description: "Workspace overview",
-  },
-];
-
-export const toolItems: DashboardNavItem[] = [
-  {
-    id: "mom",
-    label: "MoM",
-    icon: AudioLines,
-    href: createDashboardHref("mom"),
-    description: "Meeting notes and follow-ups",
-  },
-  {
-    id: "attendance-tracker",
-    label: "Attendance Tracker",
-    icon: PersonStanding,
-    href: createDashboardHref("attendance-tracker"),
-    description: "Attendance and participation tracking",
-  },
-  {
-    id: "fc-tv-cms",
-    label: "FC TV CMS",
-    icon: MonitorUp,
-    href: createDashboardHref("fc-tv-cms"),
-    description: "Content publishing and media control",
-  },
-  {
-    id: "performance-tracker",
-    label: "Performance Tracker",
-    icon: Users,
-    href: createDashboardHref("performance-tracker"),
-    description: "Team performance overview",
-  },
-  {
-    id: "pod",
-    label: "Pod",
-    icon: Target,
-    href: createDashboardHref("pod"),
-    description: "Planning and execution workspace",
-  },
-];
-
-export const upcomingItems: DashboardNavItem[] = [
-  {
-    id: "member-directory",
-    label: "Member Directory",
-    icon: BookUser,
-    href: createDashboardHref("member-directory"),
-    badge: "Soon",
-    description: "More to come soon",
-  },
-];
-
-export const profileItem: DashboardNavItem = {
-  id: "profile",
-  label: "Profile",
-  icon: CircleUserRound,
-  href: createDashboardHref("profile"),
-  description: "Account settings",
-};
+export const dashboardSidebarConfig = {
+  sections: [
+    {
+      id: "overview",
+      label: "Overview",
+      items: [
+        {
+          id: "dashboard",
+          label: "Dashboard",
+          icon: LayoutDashboard,
+          href: DASHBOARD_ROOT,
+          description: "Workspace overview",
+        },
+      ],
+    },
+    {
+      id: "tools",
+      label: "Tools",
+      items: [
+        {
+          id: "mom",
+          label: "MoM",
+          icon: AudioLines,
+          href: "/dashboard/MoM",
+          description: "Meeting notes and follow-ups",
+          // badge: "Notes",
+        },
+        {
+          id: "attendance-tracker",
+          label: "Attendance Tracker",
+          icon: PersonStanding,
+          href: "/dashboard/attendance-tracker",
+          description: "Attendance and participation tracking",
+          // badge: "Live",
+        },
+        {
+          id: "fc-tv-cms",
+          label: "FC TV CMS",
+          icon: MonitorUp,
+          href: "/dashboard/FC-TV-CMS",
+          description: "Content publishing and media control",
+          badge: "Soon",
+          disabled: true,
+        },
+        {
+          id: "performance-tracker",
+          label: "Performance Tracker",
+          icon: Users,
+          href: "/dashboard/performance-tracker",
+          description: "Team performance overview",
+          // badge: "Ops",
+          // disabled: true,
+        },
+        {
+          id: "pod",
+          label: "Pod",
+          icon: Target,
+          href: "/dashboard/POD",
+          description: "Planning and execution workspace",
+          // badge: "Exec",
+          // disabled: true,
+        },
+      ],
+    },
+    {
+      id: "coming-soon",
+      label: "Coming Soon",
+      items: [
+        {
+          id: "member-directory",
+          label: "Member Directory",
+          icon: BookUser,
+          href: "/dashboard/member-directory",
+          badge: "Soon",
+          description: "More to come soon",
+        },
+      ],
+    },
+  ],
+  footerItems: [
+    {
+      id: "profile",
+      label: "Profile",
+      icon: CircleUserRound,
+      href: "/dashboard/profile",
+      description: "Account settings",
+    },
+  ],
+} satisfies DashboardSidebarConfig;
 
 export const allDashboardNavItems: DashboardNavItem[] = [
-  ...overviewItems,
-  ...toolItems,
-  ...upcomingItems,
-  profileItem,
+  ...dashboardSidebarConfig.sections.flatMap((section) => section.items),
+  ...dashboardSidebarConfig.footerItems,
 ];
 
-export const dashboardSectionIds = allDashboardNavItems
-  .filter((item) => item.id !== "dashboard")
-  .map((item) => item.id);
+const defaultDashboardNavItem = allDashboardNavItems[0];
+
+if (!defaultDashboardNavItem) {
+  throw new Error("dashboardSidebarConfig must include at least one nav item.");
+}
 
 export const getDashboardNavItemById = (id: string) =>
   allDashboardNavItems.find((item) => item.id === id);
@@ -110,4 +142,4 @@ export const getDashboardNavItemByPathname = (pathname: string) =>
     (item) =>
       pathname === item.href ||
       (item.href !== DASHBOARD_ROOT && pathname.startsWith(`${item.href}/`)),
-  ) ?? overviewItems[0];
+  ) ?? defaultDashboardNavItem;

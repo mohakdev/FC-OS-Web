@@ -22,22 +22,19 @@ import {
 } from "@/components/ui/sidebar";
 import {
   type DashboardNavItem,
+  dashboardSidebarConfig,
   getDashboardNavItemByPathname,
-  overviewItems,
-  profileItem,
-  toolItems,
-  upcomingItems,
 } from "@/lib/dashboard-nav";
 import { cn } from "@/lib/utils";
+import { Avatar, AvatarBadge, AvatarFallback, AvatarImage } from "./ui/avatar";
 
 type SidebarNavItemProps = {
   item: DashboardNavItem;
   isActive: boolean;
-  badge?: string;
 };
 
-function SidebarNavItem({ item, isActive, badge }: SidebarNavItemProps) {
-  const buttonClassName = cn("h-10 px-2.5", badge && "pr-14");
+function SidebarNavItem({ item, isActive }: SidebarNavItemProps) {
+  const buttonClassName = cn("h-10 px-2.5", item.badge && "pr-20");
 
   return (
     <SidebarMenuItem>
@@ -47,7 +44,19 @@ function SidebarNavItem({ item, isActive, badge }: SidebarNavItemProps) {
         isActive={isActive}
         className={buttonClassName}
       >
-        <Link href={item.href}>
+        <Link
+          href={item.href}
+          aria-disabled={item.disabled || undefined}
+          prefetch={item.disabled ? false : undefined}
+          tabIndex={item.disabled ? -1 : undefined}
+          onClick={
+            item.disabled
+              ? (event) => {
+                  event.preventDefault();
+                }
+              : undefined
+          }
+        >
           <item.icon
             className={
               item.id === "profile"
@@ -58,7 +67,11 @@ function SidebarNavItem({ item, isActive, badge }: SidebarNavItemProps) {
           <span>{item.label}</span>
         </Link>
       </SidebarMenuButton>
-      {badge ? <SidebarMenuBadge>{badge}</SidebarMenuBadge> : null}
+      {item.badge ? (
+        <SidebarMenuBadge className="max-w-20 truncate">
+          {item.badge}
+        </SidebarMenuBadge>
+      ) : null}
     </SidebarMenuItem>
   );
 }
@@ -96,73 +109,50 @@ export function AppSidebar(props: ComponentProps<typeof Sidebar>) {
       <SidebarSeparator className="mx-auto" />
 
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Overview</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {overviewItems.map((item) => (
-                <SidebarNavItem
-                  key={item.id}
-                  item={item}
-                  isActive={activeItem.id === item.id}
-                />
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <SidebarGroup>
-          <SidebarGroupLabel>Tools</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {toolItems.map((item, index) => (
-                <SidebarNavItem
-                  key={item.id}
-                  item={item}
-                  isActive={activeItem.id === item.id}
-                  badge={String(index + 1).padStart(2, "0")}
-                />
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <SidebarGroup>
-          <SidebarGroupLabel>Coming Soon</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {upcomingItems.map((item) => (
-                <SidebarNavItem
-                  key={item.id}
-                  item={item}
-                  isActive={activeItem.id === item.id}
-                  badge={item.badge}
-                />
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {dashboardSidebarConfig.sections.map((section) => (
+          <SidebarGroup key={section.id}>
+            <SidebarGroupLabel>{section.label}</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {section.items.map((item) => (
+                  <SidebarNavItem
+                    key={item.id}
+                    item={item}
+                    isActive={activeItem.id === item.id}
+                  />
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
       </SidebarContent>
 
-      <SidebarSeparator />
+      <SidebarSeparator className="mx-auto" />
 
-      <SidebarFooter className="gap-2">
-        <div className="rounded-lg border border-sidebar-border bg-sidebar-accent/30 px-3 py-2 group-data-[collapsible=icon]:hidden">
+      <SidebarFooter className="">
+        {/* <div className="rounded-lg border border-sidebar-border bg-sidebar-accent/30 px-3 py-2 group-data-[collapsible=icon]:hidden">
           <p className="truncate text-sm font-medium text-sidebar-foreground">
             {activeItem.label}
           </p>
           <p className="text-xs text-sidebar-foreground/70">
             {activeItem.description}
           </p>
-        </div>
-        <SidebarMenu>
-          <SidebarNavItem
-            item={profileItem}
-            isActive={activeItem.id === profileItem.id}
-          />
-        </SidebarMenu>
+        </div> */}
       </SidebarFooter>
-
+        <SidebarMenu>
+          <SidebarMenuItem className="flex items-center justify-center">
+            <SidebarMenuButton size={"lg"} asChild>
+              <Link href={"/dashboard/profile"}>
+              <Avatar size={"lg"}>
+                <AvatarImage src={"https://github.com/shadcn.png"} alt={"Someone's Image"} className="rounded-lg" />
+                <AvatarFallback className="font-serif leading-snug">FC</AvatarFallback>
+                <AvatarBadge className="bg-primary" />
+              </Avatar>
+              <h1 className="font-serif text-2xl text-sidebar-foreground">Om Pratap Dhaker</h1>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
       <SidebarRail />
     </Sidebar>
   );
