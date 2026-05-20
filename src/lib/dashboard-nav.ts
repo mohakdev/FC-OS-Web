@@ -124,7 +124,9 @@ export const dashboardSidebarConfig = {
 } satisfies DashboardSidebarConfig;
 
 export const allDashboardNavItems: DashboardNavItem[] = [
-  ...dashboardSidebarConfig.sections.flatMap((section) => section.items),
+  ...dashboardSidebarConfig.sections.flatMap<DashboardNavItem>(
+    (section) => section.items,
+  ),
   ...dashboardSidebarConfig.footerItems,
 ];
 

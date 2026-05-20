@@ -1,8 +1,21 @@
-import { createClient } from "@/utils/supabase/server";
+import { createClient } from "@/utils/supabase/client";
 
-const supabase = createClient();
+export const signInUser = async ({
+  email,
+  password,
+}: {
+  email: string;
+  password: string;
+}) => {
+  const supabase = createClient();
 
-const { data, error } = await supabase.auth.signInWithPassword({
-  email: 'example@email.com',
-  password: 'example-password',
-})
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password
+  });
+
+  return {
+    data,
+    error: error?.message ?? null,
+  }
+};
