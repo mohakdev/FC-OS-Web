@@ -1,7 +1,6 @@
-import { pgEnum, pgTable as table } from "drizzle-orm/pg-core";
-import { serial } from "drizzle-orm/pg-core";
+import { pgEnum, pgTable, serial } from "drizzle-orm/pg-core";
 
-export const rolesEnum = pgEnum("roles", [
+export const rolesEnum = pgEnum("role_label", [
   "member",
   "associate lead",
   "co-lead",
@@ -10,9 +9,10 @@ export const rolesEnum = pgEnum("roles", [
   "leadership",
 ]);
 
-export const roles = table("roles", {
+export const roles = pgTable("roles", {
   id: serial("role_id").primaryKey(),
   label: rolesEnum().default("member"),
 });
 
-export type demoUsersType = typeof roles;
+export type Role = typeof roles.$inferSelect;
+export type NewRole = typeof roles.$inferInsert;

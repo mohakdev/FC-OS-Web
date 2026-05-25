@@ -1,29 +1,9 @@
+// TODO: Write common db actions here and query functions for roles and domains.
+
 import { db } from "../database/db";
-import { users } from "../database/schemas/users";
+import { type NewProfile, profiles } from "../database/schemas/profiles";
 
-type demoUserValuesType = {
-  name: string;
-};
-
-// async function main() {
-//   try {
-//     await db.insert(demoUsers).values({ name: "John Doe" });
-//     const result = await db.select().from(demoUsers);
-//     console.log("Successfully queried the database:", result);
-//   } catch (error) {
-//     console.error("Error querying the database:", error);
-//   }
-// }
-
-// main();
-
-export const pushDemoUsers = async ( values: demoUserValuesType[] ) => {
-  try {
-    console.log(typeof values);
-    await db.insert(users).values(values);
-    const result = await db.select().from(users);
-    console.log("Successfullt queried the database: ", result);
-  } catch (err) {
-    console.log("Error querying database: ", err);
-  }
+export const pushProfiles = async (values: NewProfile[]) => {
+  await db.insert(profiles).values(values);
+  return db.select().from(profiles);
 };
