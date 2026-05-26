@@ -12,8 +12,7 @@ export const profiles = pgTable("profiles", {
   roleId: rolesEnum("role_id")
     .references(() => roles.id, { onDelete: "restrict" })
     .notNull(),
-  domainId: domainsEnum("domain_id")
-  .references(() => domains.id, {
+  domainId: domainsEnum("domain_id").references(() => domains.id, {
     onDelete: "restrict",
   }),
 });
