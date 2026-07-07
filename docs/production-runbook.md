@@ -40,6 +40,9 @@ login shell). Two checkouts under `~/hosting/`, both behind one Cloudflare tunne
   dump Neon (aborts if empty), atomic truncate+reload, upsert auth users from `neon_auth.user`,
   verify. Run: `ssh aio bash hosting/fc-os-web-local/scripts/sync-neon-to-local.sh`
 - **`dev.sh`** — local dev on a Mac: ensures Supabase is up, runs `bun run dev` on :3000.
+- **`backup-to-github.sh`** — encrypted DB backup → private GitHub repo (see **Backups** below).
+  Standalone/non-agentic; runs nightly via the `fcos-backup` systemd timer.
+  Run: `ssh aio bash hosting/fc-os-web-local/scripts/backup-to-github.sh`
 
 ## Local dev (Mac)
 
@@ -98,10 +101,47 @@ cloudflared tunnel cert/creds under `/etc/cloudflared/`. Never commit any of the
 - **Supabase CLI binds 0.0.0.0** with default `postgres/postgres` creds → mitigated by the firewall.
 - SSH config auto-forwards `:3001` → the harmless `Address already in use` warning on every command.
 
+## Backups
+
+Nightly encrypted offsite backup of the primary DB to a **private GitHub repo** (free storage).
+Runs via `scripts/backup-to-github.sh` — standalone shell (pg_dump | gzip | age | git), no AI at
+runtime. `pg_dump` of `127.0.0.1:54322` → gzip → **age-encrypted** → committed+pushed over a
+dedicated SSH deploy key. GitHub only ever sees ciphertext. Working dir keeps the newest `KEEP`
+(30) blobs; git history retains all.
+
+- **Config (Box-only, not committed)**: `~/.config/fcos-backup/backup.env` sets
+  `BACKUP_REPO_DIR`, `AGE_RECIPIENT` (age public key), optional `KEEP`/`LOCAL_URL`/`SSH_KEY`.
+- **Schedule**: user units `scripts/systemd/fcos-backup.{service,timer}` → `~/.config/systemd/user/`,
+  `systemctl --user enable --now fcos-backup.timer` (+ `loginctl enable-linger opdhaker`). Fires
+  03:00 daily, `Persistent=true` so a run missed during downtime fires on next boot.
+- **Status**: `systemctl --user list-timers | grep fcos-backup`;
+  logs `journalctl --user -u fcos-backup`.
+
+### One-time setup (run once on the box)
+
+1. **age key** — `mkdir -p ~/.config/fcos-backup && age-keygen -o ~/.config/fcos-backup/age.key
+   && chmod 600 ~/.config/fcos-backup/age.key`. Put the printed **public key** in `backup.env`
+   as `AGE_RECIPIENT`. ⚠️ **Back up the private key `age.key` off-box (password manager). Without
+   it every backup is unrecoverable.**
+2. **SSH deploy key** — `ssh-keygen -t ed25519 -f ~/.ssh/fcos-backup -N ''`; add `~/.ssh/fcos-backup.pub`
+   as a **write** deploy key on a new **private** repo `fc-os-db-backups`.
+3. **Clone** it: `git clone git@github.com:<you>/fc-os-db-backups.git ~/hosting/fc-os-db-backups`
+   (the script pins the key via `GIT_SSH_COMMAND`, so no `~/.ssh/config` alias needed).
+4. Write `~/.config/fcos-backup/backup.env` (`BACKUP_REPO_DIR=$HOME/hosting/fc-os-db-backups`, the
+   `AGE_RECIPIENT`), then `bash scripts/backup-to-github.sh` once to verify.
+5. If `age` is missing: `sudo pacman -S age`.
+
+### Restore
+
+```bash
+age -d -i ~/.config/fcos-backup/age.key db-<TS>.sql.gz.age | gunzip | psql "$LOCAL_URL"
+```
+
+(`LOCAL_URL` = `postgres://postgres:postgres@127.0.0.1:54322/postgres`. Restore into a scratch DB
+first to verify before touching prod.)
+
 ## Known gaps / TODO
 
-- **No automated DB backups** — only ad-hoc safety dumps in `~/backups/`. Add a nightly
-  `pg_dump` of `127.0.0.1:54322` via systemd timer/cron.
 - **Box reliability** — home WiFi + mains power (rebooted twice + a power cut during setup).
   Wire ethernet; `cloud.fc-os.tech` is the failback.
 - **`permissions` table empty** — matches Neon prod, so RBAC is flag/role-based, not row-based.

@@ -1,0 +1,16 @@
+# Encrypted DB backup -> private GitHub repo. User unit for the AIO box.
+# Install: cp scripts/systemd/fcos-backup.{service,timer} ~/.config/systemd/user/
+#          systemctl --user daemon-reload
+#          systemctl --user enable --now fcos-backup.timer
+#          loginctl enable-linger "$USER"   # so it runs without an active login
+[Unit]
+Description=FC OS encrypted DB backup to GitHub
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/hosting/fc-os-web-local/scripts/backup-to-github.sh
+# pg_dump/age/git live in the usual PATHs; keep it explicit for a clean systemd env.
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+Nice=10
