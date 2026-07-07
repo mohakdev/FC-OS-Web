@@ -76,8 +76,21 @@ touching that area:
 - **`### App structure`** — gated dashboard shell, `dashboard-nav.ts`, Opus.
 - **`### Opus`** — per-domain kanban data model + the built workspace: routes under
   `src/app/dashboard/opus/`, data layer in `src/utils/opusDbActions.ts`, authz in
-  `src/lib/opus/permissions.ts`, shared presentation in `src/lib/opus/format.ts` (incl. the
-  status progress-ring / terminal-Cancelled-cross logic rendered by `StatusIcon`).
+  `src/lib/opus/permissions.ts` (`canManageDomain` = manager-only full edits vs
+  `canChangeTaskStatus` = assignees may set status on their own tasks/subtasks), shared
+  presentation in `src/lib/opus/format.ts` — `statusFraction`/`StatusIcon` fill the
+  progress-ring by rank among dynamic statuses, and any status flagged
+  `opus_statuses.ring_full` renders a complete ring (data-driven; replaces the old
+  hardcoded Done/Cancelled special-casing).
+- **`### Realtime`** — app-wide live updates via Postgres `LISTEN/NOTIFY` (channel
+  `fc_realtime`) → one `globalThis`-guarded process-wide hub (`src/lib/realtime/server.ts`)
+  → SSE route `src/app/api/realtime/route.ts` (nodejs, auth-gated, 25s heartbeat) → single
+  `EventSource("/api/realtime")` per tab in `src/components/realtime/realtime-provider.tsx`
+  → debounced `router.refresh()`. Server actions emit via `notifyRealtime(...)` at existing
+  revalidate choke-points (opus `revalidateBoard`/`revalidateManage`, member actions).
+  **All driver-specific listen/notify is isolated to `src/lib/realtime/pg-driver.ts`** — the
+  only file to touch for the future neon-serverless failback (it needs manual reconnect;
+  postgres-js auto-reconnects). No new env var: the EventSource URL is same-origin relative.
 
 ## UI components
 
@@ -85,5 +98,6 @@ touching that area:
 `src/components/ui/` (Card, Button, Badge, Avatar, Sidebar, ScrollArea, DropdownMenu,
 etc.). Need a component that isn't installed? Add it with `bunx shadcn@latest add <name>`
 — do not hand-roll or pull in another component library. Config: `components.json`
-(style `radix-nova`, icons `lucide-react`). Non-UI libs for behavior are fine when no
+(style `radix-nova`, icons `lucide-react`); the shadcn MCP server is wired in `.mcp.json`
+for component lookup/examples. Non-UI libs for behavior are fine when no
 shadcn equivalent exists (e.g. `@dnd-kit` for drag-and-drop).

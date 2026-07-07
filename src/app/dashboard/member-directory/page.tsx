@@ -1,3 +1,4 @@
+import { Refresher } from "@/components/realtime/refresher";
 import { getAccessContext } from "@/lib/auth/context";
 import { getApprovedMembers } from "@/utils/dbActions";
 import MemberDirectoryClient from "./member-directory-client";
@@ -13,6 +14,7 @@ export default async function MemberDirectoryPage() {
 
   return (
     <div className="flex flex-col gap-4">
+      <Refresher scope="member" />
       <div>
         <h1 className="font-serif text-3xl text-primary">Member Directory</h1>
         <p className="text-sm text-muted-foreground">

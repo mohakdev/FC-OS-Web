@@ -1,6 +1,7 @@
 import { AlarmClock, CalendarClock, CircleAlert, ListTodo } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Refresher } from "@/components/realtime/refresher";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -36,6 +37,7 @@ export default async function OpusOverviewPage() {
 
   return (
     <div className="mt-6 flex flex-col gap-6">
+      <Refresher scope="opus-board" />
       <h1 className="font-serif text-7xl text-primary">Overview</h1>
 
       <div className="grid gap-6 sm:grid-cols-3">

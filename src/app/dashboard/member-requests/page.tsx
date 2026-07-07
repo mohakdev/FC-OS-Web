@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 
+import { Refresher } from "@/components/realtime/refresher";
 import { getAccessContext } from "@/lib/auth/context";
 import { getAppSettings, getPendingMembers } from "@/utils/dbActions";
 import MemberRequestRow from "./member-request-row";
@@ -26,6 +27,7 @@ export default async function MemberRequestsPage() {
 
   return (
     <div className="flex flex-col gap-4">
+      <Refresher scope="member" />
       <div>
         <h1 className="font-serif text-3xl text-primary">Member Requests</h1>
         <p className="text-sm text-muted-foreground">

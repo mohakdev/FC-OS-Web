@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { AppSidebar } from "@/components/app-sidebar";
 import DynamicBreadcrumb from "@/components/DynamicBreadcrumb";
+import { RealtimeProvider } from "@/components/realtime/realtime-provider";
 import { Separator } from "@/components/ui/separator";
 import {
   SidebarInset,
@@ -44,27 +45,29 @@ export default async function RootLayout({
 
   return (
     <TooltipProvider>
-      <SidebarProvider>
-        <AppSidebar
-          collapsible={"icon"}
-          isApprover={state.ctx.isApprover}
-          canApproveMembers={canApproveMembers}
-          userName={`${state.ctx.firstName} ${state.ctx.lastName}`.trim()}
-          navData={navData}
-        />
-        <SidebarInset className="min-w-0">
-          <header className="flex h-16 shrink-0 items-center gap-2">
-            <div className="flex items-center gap-2 px-4">
-              <SidebarTrigger className="-ml-1 rounded-full" />
-              <Separator orientation="vertical" className="" />
-              <DynamicBreadcrumb />
+      <RealtimeProvider>
+        <SidebarProvider>
+          <AppSidebar
+            collapsible={"icon"}
+            isApprover={state.ctx.isApprover}
+            canApproveMembers={canApproveMembers}
+            userName={`${state.ctx.firstName} ${state.ctx.lastName}`.trim()}
+            navData={navData}
+          />
+          <SidebarInset className="min-w-0">
+            <header className="flex h-16 shrink-0 items-center gap-2">
+              <div className="flex items-center gap-2 px-4">
+                <SidebarTrigger className="-ml-1 rounded-full" />
+                <Separator orientation="vertical" className="" />
+                <DynamicBreadcrumb />
+              </div>
+            </header>
+            <div className="flex min-w-0 flex-1 flex-col gap-4 p-4 pt-0">
+              {children}
             </div>
-          </header>
-          <div className="flex min-w-0 flex-1 flex-col gap-4 p-4 pt-0">
-            {children}
-          </div>
-        </SidebarInset>
-      </SidebarProvider>
+          </SidebarInset>
+        </SidebarProvider>
+      </RealtimeProvider>
     </TooltipProvider>
   );
 }

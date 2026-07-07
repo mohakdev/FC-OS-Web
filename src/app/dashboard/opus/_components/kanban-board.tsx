@@ -22,6 +22,7 @@ import { Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { useRealtimeEvent } from "@/components/realtime/realtime-provider";
 import { Button } from "@/components/ui/button";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import {
@@ -168,6 +169,14 @@ export function KanbanBoard({
   initialTaskId?: string;
 }) {
   const router = useRouter();
+
+  // Live updates: refresh when another session mutates this domain's board.
+  // The re-sync effect below flows the new props into local state.
+  useRealtimeEvent(
+    (evt) => evt.scope === "opus-board" && evt.domain === domain,
+    () => router.refresh(),
+  );
+
   const statusIds = useMemo(
     () => meta.statuses.map((s) => s.id),
     [meta.statuses],

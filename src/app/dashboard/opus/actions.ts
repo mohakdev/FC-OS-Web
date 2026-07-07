@@ -5,6 +5,7 @@ import { z } from "zod";
 import { getAccessContext, requireWriteAccess } from "@/lib/auth/context";
 import { isDomainId } from "@/lib/opus/format";
 import { canChangeTaskStatus, canManageDomain } from "@/lib/opus/permissions";
+import { notifyRealtime } from "@/lib/realtime/notify";
 import {
   countTasksWithPriority,
   countTasksWithStatus,
@@ -138,9 +139,10 @@ async function parseTaskInput(
   return { value, dueDate };
 }
 
-function revalidateBoard(domain: string) {
+async function revalidateBoard(domain: string) {
   revalidatePath(`/dashboard/opus/tasks/${domain}`);
   revalidatePath("/dashboard/opus");
+  await notifyRealtime({ scope: "opus-board", domain });
 }
 
 // --- tasks -----------------------------------------------------------------
@@ -173,7 +175,7 @@ export async function createTaskAction(
     dueDate: parsed.dueDate,
     input: parsed.value,
   });
-  revalidateBoard(domain);
+  await revalidateBoard(domain);
   return { ok: true, id };
 }
 
@@ -202,7 +204,7 @@ export async function updateTaskAction(
     : parsed.dueDate;
 
   await updateOpusTask(taskId, parsed.value, dueDate);
-  revalidateBoard(info.domain);
+  await revalidateBoard(info.domain);
   return { ok: true };
 }
 
@@ -235,7 +237,7 @@ export async function addSubtaskAction(
     dueDate,
     input: parsed.value,
   });
-  revalidateBoard(info.domain);
+  await revalidateBoard(info.domain);
   return { ok: true, id };
 }
 
@@ -278,7 +280,7 @@ export async function moveTaskAction(
   }
 
   await moveOpusTask(taskId, parsed.data.toStatusId, parsed.data.targetOrder);
-  revalidateBoard(info.domain);
+  await revalidateBoard(info.domain);
   return { ok: true };
 }
 
@@ -306,7 +308,7 @@ export async function setTaskStatusAction(
   }
 
   await setOpusTaskStatus(taskId, statusId);
-  revalidateBoard(info.domain);
+  await revalidateBoard(info.domain);
   return { ok: true };
 }
 
@@ -321,15 +323,16 @@ export async function deleteTaskAction(taskId: string): Promise<ActionResult> {
   }
 
   await deleteOpusTask(taskId);
-  revalidateBoard(info.domain);
+  await revalidateBoard(info.domain);
   return { ok: true };
 }
 
 // --- statuses / priorities / labels (Manage) -------------------------------
 
-function revalidateManage(domain: string) {
+async function revalidateManage(domain: string) {
   revalidatePath(`/dashboard/opus/manage/${domain}`);
   revalidatePath(`/dashboard/opus/tasks/${domain}`);
+  await notifyRealtime({ scope: "opus-board", domain });
 }
 
 async function requireManager(domain: string) {
@@ -360,7 +363,7 @@ export async function createStatusAction(
   const c = colorSchema.safeParse(color);
   if (!c.success) return { error: c.error.issues[0].message };
   await createOpusStatus(domain as DomainId, n.data, c.data);
-  revalidateManage(domain);
+  await revalidateManage(domain);
   return { ok: true };
 }
 
@@ -380,7 +383,7 @@ export async function updateStatusAction(
     return { error: "Unknown status for this domain." };
   }
   await updateOpusStatus(id, n.data, c.data);
-  revalidateManage(domain);
+  await revalidateManage(domain);
   return { ok: true };
 }
 
@@ -397,7 +400,7 @@ export async function deleteStatusAction(
     return { error: "Move or delete its tasks before removing this status." };
   }
   await deleteOpusStatus(id);
-  revalidateManage(domain);
+  await revalidateManage(domain);
   return { ok: true };
 }
 
@@ -415,7 +418,7 @@ export async function reorderStatusesAction(
     return { error: "Unknown status for this domain." };
   }
   await reorderOpusStatuses(orderedIds);
-  revalidateManage(domain);
+  await revalidateManage(domain);
   return { ok: true };
 }
 
@@ -441,7 +444,7 @@ export async function setStatusFullAction(
     return { error: "Unknown status for this domain." };
   }
   await setOpusStatusFull(id, ringFull, orderedIds);
-  revalidateManage(domain);
+  await revalidateManage(domain);
   return { ok: true };
 }
 
@@ -454,7 +457,7 @@ export async function createPriorityAction(
   const parsed = nameSchema.safeParse(name);
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   await createOpusPriority(domain as DomainId, parsed.data);
-  revalidateManage(domain);
+  await revalidateManage(domain);
   return { ok: true };
 }
 
@@ -471,7 +474,7 @@ export async function renamePriorityAction(
     return { error: "Unknown priority for this domain." };
   }
   await updateOpusPriority(id, parsed.data);
-  revalidateManage(domain);
+  await revalidateManage(domain);
   return { ok: true };
 }
 
@@ -488,7 +491,7 @@ export async function deletePriorityAction(
     return { error: "This priority is in use by some tasks." };
   }
   await deleteOpusPriority(id);
-  revalidateManage(domain);
+  await revalidateManage(domain);
   return { ok: true };
 }
 
@@ -506,7 +509,7 @@ export async function reorderPrioritiesAction(
     return { error: "Unknown priority for this domain." };
   }
   await reorderOpusPriorities(orderedIds);
-  revalidateManage(domain);
+  await revalidateManage(domain);
   return { ok: true };
 }
 
@@ -522,7 +525,7 @@ export async function createLabelAction(
   const c = colorSchema.safeParse(color);
   if (!c.success) return { error: c.error.issues[0].message };
   await createOpusLabel(domain as DomainId, n.data, c.data);
-  revalidateManage(domain);
+  await revalidateManage(domain);
   return { ok: true };
 }
 
@@ -542,7 +545,7 @@ export async function updateLabelAction(
     return { error: "Unknown label for this domain." };
   }
   await updateOpusLabel(id, n.data, c.data);
-  revalidateManage(domain);
+  await revalidateManage(domain);
   return { ok: true };
 }
 
@@ -556,6 +559,6 @@ export async function deleteLabelAction(
     return { error: "Unknown label for this domain." };
   }
   await deleteOpusLabel(id);
-  revalidateManage(domain);
+  await revalidateManage(domain);
   return { ok: true };
 }

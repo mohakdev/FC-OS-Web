@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { rolesEnum } from "@/database/schemas/roles";
 import { requireWriteAccess } from "@/lib/auth/context";
+import { notifyRealtime } from "@/lib/realtime/notify";
 import {
   getAppSettings,
   getProfileDomains,
@@ -56,5 +57,6 @@ export async function decideMember(
 
   await setMemberDecision(ctx.userId, profileId, decision);
   revalidatePath("/dashboard/member-requests");
+  await notifyRealtime({ scope: "member" });
   return { ok: true };
 }

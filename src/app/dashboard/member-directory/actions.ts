@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { domainsEnum } from "@/database/schemas/domains";
 import { rolesEnum } from "@/database/schemas/roles";
 import { requireWriteAccess } from "@/lib/auth/context";
+import { notifyRealtime } from "@/lib/realtime/notify";
 import {
   type RoleLabel,
   setMemberDecision,
@@ -69,6 +70,7 @@ export async function updateMember(
   );
 
   revalidatePath("/dashboard/member-directory");
+  await notifyRealtime({ scope: "member" });
   return { ok: true };
 }
 
@@ -82,5 +84,6 @@ export async function removeMember(profileId: string): Promise<ManageResult> {
   await setMemberDecision(ctx.userId, profileId, "rejected");
 
   revalidatePath("/dashboard/member-directory");
+  await notifyRealtime({ scope: "member" });
   return { ok: true };
 }

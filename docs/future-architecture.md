@@ -11,6 +11,7 @@ that's only partial — see `production-runbook.md` "Known gaps". This is the cl
 | DB driver | `postgres-js` (local Supabase PG) | **`neon-serverless` (WebSocket)** | `db.ts` branches on env. **Not** neon-http — it can't do interactive transactions; the WebSocket Pool driver can, so the existing `db.transaction` calls (dbActions ×2, opusDbActions ×6) work unchanged on both. Re-add `@neondatabase/serverless` + `ws`. |
 | Auth | self-hosted Better Auth | **same** self-hosted Better Auth | Drop Neon Auth (hosted) entirely. Better Auth needs only *a* Postgres — local or Neon. Its tables follow `DATABASE_URL`. |
 | Mail | Resend | Resend | identical |
+| Realtime | postgres-js LISTEN/NOTIFY (auto-reconnect) | neon-serverless LISTEN (manual reconnect) | isolated to `src/lib/realtime/pg-driver.ts` — swap that one file (see below) |
 | Config | `DATABASE_URL` = local | `DATABASE_URL` = Neon (+ `ssl`) | only `.env` differs |
 
 ### Why this nails the requirement
@@ -21,6 +22,10 @@ that's only partial — see `production-runbook.md` "Known gaps". This is the cl
 
 ## Work it takes
 1. `db.ts` driver switch by env + re-add `@neondatabase/serverless`/`ws`; conditional `ssl` in `drizzle.config.ts`.
+   - **Realtime rides along:** app-wide realtime uses Postgres LISTEN/NOTIFY. postgres-js
+     auto-reconnects + re-LISTENs; neon-serverless does **not** auto-resubscribe. The driver swap
+     must also implement a manual reconnect loop in `src/lib/realtime/pg-driver.ts` (the only file
+     that touches listen/notify). Everything else — hub, SSE route, client — stays unchanged.
 2. **Prep the Neon standby**: push the self-host schema to Neon and migrate `neon_auth.user` →
    `public.user` (same as was done locally) so it's actually ready to spin up.
 3. Bidirectional sync script + runbook (FK-safe). Forward (`sync-neon-to-local.sh`) already exists.
