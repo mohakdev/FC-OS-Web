@@ -27,7 +27,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { OpusLabel } from "@/database/schemas/opus_labels";
 import type { OpusPriority } from "@/database/schemas/opus_priorities";
 import type { OpusStatus } from "@/database/schemas/opus_statuses";
-import { formatDomain, statusFraction } from "@/lib/opus/format";
+import { formatDomain, priorityBars, statusFraction } from "@/lib/opus/format";
 import {
   type ActionResult,
   createLabelAction,
@@ -39,10 +39,12 @@ import {
   renamePriorityAction,
   reorderPrioritiesAction,
   reorderStatusesAction,
+  setPriorityFullAction,
   setStatusFullAction,
   updateLabelAction,
   updateStatusAction,
 } from "../actions";
+import { PriorityIcon } from "./priority-icon";
 import { StatusIcon } from "./status-icon";
 
 type MetaItem = (OpusStatus | OpusPriority) & { color?: string };
@@ -58,6 +60,8 @@ function OrderedMetaSection({
   items,
   withColor = false,
   ringToggle = false,
+  barIcon = false,
+  fullLabel = "Full",
   onCreate,
   onRename,
   onDelete,
@@ -68,8 +72,12 @@ function OrderedMetaSection({
   noun: string;
   items: MetaItem[];
   withColor?: boolean;
-  /** Enables the per-row full/dynamic ring toggle + ordering rule (statuses only). */
+  /** Enables the per-row full/dynamic ring toggle + ordering rule. */
   ringToggle?: boolean;
+  /** Renders the bar-graph priority icon (priorities) instead of the ring (statuses). */
+  barIcon?: boolean;
+  /** Label for the "make fixed/full" toggle button (e.g. "Full" for statuses). */
+  fullLabel?: string;
   onCreate: (name: string, color?: string) => Promise<ActionResult>;
   onRename: (id: string, name: string, color?: string) => Promise<ActionResult>;
   onDelete: (id: string) => Promise<ActionResult>;
@@ -117,7 +125,9 @@ function OrderedMetaSection({
     const next = [...items];
     [next[index], next[target]] = [next[target], next[index]];
     if (ringToggle && !orderIsValid(next)) {
-      toast.error("Dynamic statuses must stay above full ones.");
+      toast.error(
+        `Dynamic ${noun.toLowerCase()} items must stay above ${fullLabel.toLowerCase()} ones.`,
+      );
       return;
     }
     run(() => onReorder(next.map((i) => i.id)), "Reordered.");
@@ -140,7 +150,7 @@ function OrderedMetaSection({
           next,
           ordered.map((i) => i.id),
         ),
-      next ? "Marked full." : "Marked dynamic.",
+      next ? `Marked ${fullLabel.toLowerCase()}.` : "Marked dynamic.",
     );
   };
 
@@ -223,6 +233,20 @@ function OrderedMetaSection({
                     }
                   />
                 )}
+                {barIcon &&
+                  (() => {
+                    const b = priorityBars(
+                      items.map((i) => ({ id: i.id, ringFull: isFull(i) })),
+                      item.id,
+                    );
+                    return (
+                      <PriorityIcon
+                        bars={b.bars}
+                        filled={b.filled}
+                        fixed={b.fixed}
+                      />
+                    );
+                  })()}
                 <span className="flex-1 text-sm">{item.name}</span>
                 {ringToggle && onToggleFull && (
                   <Button
@@ -232,7 +256,7 @@ function OrderedMetaSection({
                     disabled={isPending}
                     onClick={() => toggleFull(item, !isFull(item))}
                   >
-                    {isFull(item) ? "Full" : "Dynamic"}
+                    {isFull(item) ? fullLabel : "Dynamic"}
                   </Button>
                 )}
                 {withColor && (
@@ -536,12 +560,18 @@ export function ManageClient({
             <TabsContent value="priorities" className="pt-4">
               <OrderedMetaSection
                 noun="Priority"
-                description="Priority levels available to tasks."
+                description="Priority levels for tasks, low to high. Dynamic priorities light more bars further up the list; mark one Fixed for a static red bar icon (e.g. Urgent). Fixed priorities stay below the dynamic ones."
                 items={priorities}
+                barIcon
+                ringToggle
+                fullLabel="Fixed"
                 onCreate={(name) => createPriorityAction(domain, name)}
                 onRename={(id, name) => renamePriorityAction(domain, id, name)}
                 onDelete={(id) => deletePriorityAction(domain, id)}
                 onReorder={(ids) => reorderPrioritiesAction(domain, ids)}
+                onToggleFull={(id, next, ids) =>
+                  setPriorityFullAction(domain, id, next, ids)
+                }
               />
             </TabsContent>
             <TabsContent value="labels" className="pt-4">

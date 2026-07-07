@@ -18,12 +18,19 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Plus } from "lucide-react";
+import { ChevronDown, LayoutGrid, Plus, Rows3 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useRealtimeEvent } from "@/components/realtime/realtime-provider";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import {
   type DomainId,
@@ -31,6 +38,7 @@ import {
   formatDomain,
   statusFraction,
 } from "@/lib/opus/format";
+import { usePersistedView } from "@/lib/opus/use-persisted-view";
 import {
   addSubtaskAction,
   createTaskAction,
@@ -41,6 +49,7 @@ import { StatusIcon } from "./status-icon";
 import { TaskCard } from "./task-card";
 import { TaskDetailDialog } from "./task-detail-dialog";
 import { TaskFieldsDialog } from "./task-fields-dialog";
+import { TaskTable } from "./task-table";
 import type { BoardTask, DomainMeta } from "./types";
 
 type Columns = Record<string, string[]>;
@@ -197,6 +206,20 @@ export function KanbanBoard({
     initialTaskId ?? null,
   );
   const [createOpen, setCreateOpen] = useState(false);
+  const [view, setView] = usePersistedView();
+
+  // Flat, status-ordered task list for the table view — mirrors the board's ordering
+  // (statuses in order, tasks in each column's order) so both views agree.
+  const orderedTasks = useMemo(() => {
+    const out: BoardTask[] = [];
+    for (const s of meta.statuses) {
+      for (const id of columns[s.id] ?? []) {
+        const t = taskMap.get(id);
+        if (t) out.push(t);
+      }
+    }
+    return out;
+  }, [meta.statuses, columns, taskMap]);
 
   // Re-sync from the server whenever the board data changes.
   useEffect(() => {
@@ -286,50 +309,85 @@ export function KanbanBoard({
           </div>
         </div>
 
-        {canManage && (
-          <Button onClick={() => setCreateOpen(true)} className="font-medium">
-            <Plus className="size-4" /> New task
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="font-medium">
+                {view === "board" ? (
+                  <LayoutGrid className="size-4" />
+                ) : (
+                  <Rows3 className="size-4" />
+                )}
+                {view === "board" ? "Board" : "Table"}
+                <ChevronDown className="size-4 text-muted-foreground" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-36">
+              <DropdownMenuRadioGroup
+                value={view}
+                onValueChange={(v) => setView(v as "board" | "table")}
+              >
+                <DropdownMenuRadioItem value="board">
+                  <LayoutGrid className="size-4" /> Board
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="table">
+                  <Rows3 className="size-4" /> Table
+                </DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {canManage && (
+            <Button onClick={() => setCreateOpen(true)} className="font-medium">
+              <Plus className="size-4" /> New task
+            </Button>
+          )}
+        </div>
       </div>
 
-      <ScrollArea className="min-h-0 min-w-0 flex-1">
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCorners}
-          onDragStart={handleDragStart}
-          onDragOver={handleDragOver}
-          onDragEnd={handleDragEnd}
-        >
-          <div className="flex gap-2 pb-3">
-            {meta.statuses.map((s) => (
-              <Column
-                key={s.id}
-                statusId={s.id}
-                name={s.name}
-                color={s.color}
-                fraction={statusFraction(meta.statuses, s.id)}
-                taskIds={columns[s.id] ?? []}
-                taskMap={taskMap}
-                meta={meta}
-                onOpen={setOpenTaskId}
-              />
-            ))}
-          </div>
-          <DragOverlay>
-            {activeTask ? (
-              <TaskCard
-                task={activeTask}
-                priorities={meta.priorities}
-                labels={meta.labels}
-                statusName={statusName.get(activeTask.statusId) ?? ""}
-                onOpen={() => {}}
-              />
-            ) : null}
-          </DragOverlay>
-        </DndContext>
-        <ScrollBar orientation="horizontal" />
-      </ScrollArea>
+      {view === "board" ? (
+        <ScrollArea className="min-h-0 min-w-0 flex-1">
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCorners}
+            onDragStart={handleDragStart}
+            onDragOver={handleDragOver}
+            onDragEnd={handleDragEnd}
+          >
+            <div className="flex gap-2 pb-3">
+              {meta.statuses.map((s) => (
+                <Column
+                  key={s.id}
+                  statusId={s.id}
+                  name={s.name}
+                  color={s.color}
+                  fraction={statusFraction(meta.statuses, s.id)}
+                  taskIds={columns[s.id] ?? []}
+                  taskMap={taskMap}
+                  meta={meta}
+                  onOpen={setOpenTaskId}
+                />
+              ))}
+            </div>
+            <DragOverlay>
+              {activeTask ? (
+                <TaskCard
+                  task={activeTask}
+                  priorities={meta.priorities}
+                  labels={meta.labels}
+                  statusName={statusName.get(activeTask.statusId) ?? ""}
+                  onOpen={() => {}}
+                />
+              ) : null}
+            </DragOverlay>
+          </DndContext>
+          <ScrollBar orientation="horizontal" />
+        </ScrollArea>
+      ) : (
+        <ScrollArea className="min-h-0 min-w-0 flex-1">
+          <TaskTable tasks={orderedTasks} meta={meta} onOpen={setOpenTaskId} />
+        </ScrollArea>
+      )}
 
       <TaskDetailDialog
         taskId={openTaskId}

@@ -575,6 +575,30 @@ export const reorderOpusPriorities = async (orderedIds: string[]) => {
   });
 };
 
+/**
+ * Atomically set a priority's `ringFull` (fixed) flag and rewrite positions from
+ * `orderedIds`. Mirrors `setOpusStatusFull`: flipping to fixed sinks the priority below
+ * all dynamic ones, so the flag flip and the reorder must land together.
+ */
+export const setOpusPriorityFull = async (
+  id: string,
+  ringFull: boolean,
+  orderedIds: string[],
+) => {
+  await db.transaction(async (tx) => {
+    await tx
+      .update(opusPriorities)
+      .set({ ringFull })
+      .where(eq(opusPriorities.id, id));
+    for (const [index, pid] of orderedIds.entries()) {
+      await tx
+        .update(opusPriorities)
+        .set({ position: index })
+        .where(eq(opusPriorities.id, pid));
+    }
+  });
+};
+
 export const createOpusLabel = async (
   domain: DomainId,
   name: string,

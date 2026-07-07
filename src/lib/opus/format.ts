@@ -31,20 +31,24 @@ export const isDomainId = (value: string): value is DomainId =>
 export const initials = (firstName: string, lastName: string) =>
   `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
 
-/** Badge classes for the seeded priorities; custom ones fall back to muted. */
-export const priorityBadgeClass = (name: string | null): string => {
-  switch (name) {
-    case "Urgent":
-      return "border-transparent bg-red-500/15 text-red-600 dark:text-red-400";
-    case "High":
-      return "border-transparent bg-orange-500/15 text-orange-600 dark:text-orange-400";
-    case "Medium":
-      return "border-transparent bg-amber-500/15 text-amber-600 dark:text-amber-400";
-    case "Low":
-      return "border-transparent bg-sky-500/15 text-sky-600 dark:text-sky-400";
-    default:
-      return "border-transparent bg-muted text-muted-foreground";
-  }
+/**
+ * Bar-graph spec for a priority's icon — mirrors `statusFraction`. A priority flagged
+ * `ringFull` is "fixed" (e.g. Urgent): rendered as a static, fully-lit red bar icon. A
+ * dynamic priority shows `bars` bars (one per dynamic priority) with the first `filled`
+ * lit by its rank among the dynamic ones — so the lowest-ranked lights 1 bar and the
+ * highest lights them all. A missing/unknown priority id lights none.
+ */
+export const priorityBars = (
+  priorities: { id: string; ringFull: boolean }[],
+  id: string | null,
+): { bars: number; filled: number; fixed: boolean } => {
+  const dynamic = priorities.filter((p) => !p.ringFull);
+  const total = Math.max(1, dynamic.length);
+  const target = id ? priorities.find((p) => p.id === id) : undefined;
+  if (!target) return { bars: total, filled: 0, fixed: false };
+  if (target.ringFull) return { bars: total, filled: total, fixed: true };
+  const index = dynamic.findIndex((p) => p.id === id);
+  return { bars: total, filled: index < 0 ? 0 : index + 1, fixed: false };
 };
 
 const CLOSED_STATUS = new Set(["Done", "Cancelled"]);

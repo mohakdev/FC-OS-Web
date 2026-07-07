@@ -34,7 +34,7 @@ import {
   initials,
   isOverdue,
   labelTextColor,
-  priorityBadgeClass,
+  priorityBars,
   statusFraction,
 } from "@/lib/opus/format";
 import { cn } from "@/lib/utils";
@@ -47,6 +47,7 @@ import {
   type TaskInputDTO,
   updateTaskAction,
 } from "../actions";
+import { PriorityIcon } from "./priority-icon";
 import { StatusIcon } from "./status-icon";
 import { TaskFieldsDialog } from "./task-fields-dialog";
 import type { DomainMeta, FormValues } from "./types";
@@ -156,6 +157,7 @@ function TaskHeaderAndBody({
   const sm = statusMetaFor(meta, task.statusId);
   const statusName = sm?.name ?? "";
   const priority = meta.priorities.find((p) => p.id === task.priorityId);
+  const pBars = priorityBars(meta.priorities, task.priorityId);
   const taskLabels = meta.labels.filter((l) => task.labelIds.includes(l.id));
   const overdue = isOverdue(task.dueDate, statusName);
 
@@ -174,15 +176,14 @@ function TaskHeaderAndBody({
             <StatusBadge meta={meta} statusId={task.statusId} />
           )}
           {priority && (
-            <Badge
-              variant="outline"
-              className={cn(
-                "text-xs font-medium",
-                priorityBadgeClass(priority.name),
-              )}
-            >
+            <span className="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium">
+              <PriorityIcon
+                bars={pBars.bars}
+                filled={pBars.filled}
+                fixed={pBars.fixed}
+              />
               {priority.name}
-            </Badge>
+            </span>
           )}
           {task.dueDate && (
             <span

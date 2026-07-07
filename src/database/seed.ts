@@ -41,11 +41,14 @@ const DEFAULT_STATUSES = [
   { name: "Cancelled", position: 4, color: "#ef4444", ringFull: true },
 ] as const;
 
+// Dynamic priorities first (ascending severity → more bars lit), fixed ones last —
+// mirrors the statuses convention. Low fills 1 bar, High fills all dynamic bars,
+// Urgent is a static fully-lit red icon.
 const DEFAULT_PRIORITIES = [
-  { name: "Urgent", position: 0 },
-  { name: "High", position: 1 },
-  { name: "Medium", position: 2 },
-  { name: "Low", position: 3 },
+  { name: "Low", position: 0, ringFull: false },
+  { name: "Medium", position: 1, ringFull: false },
+  { name: "High", position: 2, ringFull: false },
+  { name: "Urgent", position: 3, ringFull: true },
 ] as const;
 
 async function seed() {
@@ -84,6 +87,7 @@ async function seed() {
           domain: domainId,
           name: p.name,
           position: p.position,
+          ringFull: p.ringFull,
           isDefault: true,
         })),
       )

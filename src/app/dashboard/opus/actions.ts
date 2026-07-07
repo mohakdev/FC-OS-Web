@@ -29,6 +29,7 @@ import {
   priorityDomainsByIds,
   reorderOpusPriorities,
   reorderOpusStatuses,
+  setOpusPriorityFull,
   setOpusStatusFull,
   setOpusTaskStatus,
   statusDomain,
@@ -509,6 +510,32 @@ export async function reorderPrioritiesAction(
     return { error: "Unknown priority for this domain." };
   }
   await reorderOpusPriorities(orderedIds);
+  await revalidateManage(domain);
+  return { ok: true };
+}
+
+/**
+ * Toggle a priority's fixed/dynamic flag and reorder in one shot. `orderedIds` is the
+ * full priority order the client computed (dynamic block first, fixed block last) —
+ * re-validated server-side so all ids belong to the domain. Mirrors setStatusFullAction.
+ */
+export async function setPriorityFullAction(
+  domain: string,
+  id: string,
+  ringFull: boolean,
+  orderedIds: string[],
+): Promise<ActionResult> {
+  const ctx = await requireManager(domain);
+  if ("error" in ctx) return ctx;
+  const domains = await priorityDomainsByIds(orderedIds);
+  if (
+    domains.length !== orderedIds.length ||
+    domains.some((d) => d !== domain) ||
+    !orderedIds.includes(id)
+  ) {
+    return { error: "Unknown priority for this domain." };
+  }
+  await setOpusPriorityFull(id, ringFull, orderedIds);
   await revalidateManage(domain);
   return { ok: true };
 }

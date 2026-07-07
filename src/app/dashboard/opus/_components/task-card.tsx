@@ -2,7 +2,6 @@
 
 import { CalendarClock, GitBranch, Link2 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import type { OpusLabel } from "@/database/schemas/opus_labels";
 import type { OpusPriority } from "@/database/schemas/opus_priorities";
 import {
@@ -10,9 +9,10 @@ import {
   initials,
   isOverdue,
   labelTextColor,
-  priorityBadgeClass,
+  priorityBars,
 } from "@/lib/opus/format";
 import { cn } from "@/lib/utils";
+import { PriorityIcon } from "./priority-icon";
 import type { BoardTask } from "./types";
 
 export function TaskCard({
@@ -29,6 +29,7 @@ export function TaskCard({
   onOpen: () => void;
 }) {
   const priority = priorities.find((p) => p.id === task.priorityId);
+  const pBars = priorityBars(priorities, task.priorityId);
   const taskLabels = labels.filter((l) => task.labelIds.includes(l.id));
   const overdue = isOverdue(task.dueDate, statusName);
 
@@ -39,14 +40,18 @@ export function TaskCard({
       className="w-full rounded-lg border bg-card p-3 text-left shadow-xs transition-colors hover:border-primary/40 hover:bg-accent/40"
     >
       {(priority || taskLabels.length > 0) && (
-        <div className="flex flex-wrap items-center gap-1">
+        <div className="flex flex-wrap items-center gap-1.5">
           {priority && (
-            <Badge
-              variant="outline"
-              className={cn("text-xs", priorityBadgeClass(priority.name))}
-            >
-              {priority.name}
-            </Badge>
+            <span className="inline-flex items-center gap-1 pr-0.5">
+              <PriorityIcon
+                bars={pBars.bars}
+                filled={pBars.filled}
+                fixed={pBars.fixed}
+              />
+              <span className="text-xs font-medium text-muted-foreground">
+                {priority.name}
+              </span>
+            </span>
           )}
           {taskLabels.map((l) => (
             <span
