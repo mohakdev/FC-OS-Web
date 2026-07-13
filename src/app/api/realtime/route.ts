@@ -17,7 +17,7 @@ const HEARTBEAT_MS = 25_000;
  */
 export async function GET(request: Request): Promise<Response> {
   const ctx = await getAccessContext();
-  if (!ctx) {
+  if (!ctx || ctx.status !== "approved") {
     return new Response("Unauthorized", { status: 401 });
   }
 

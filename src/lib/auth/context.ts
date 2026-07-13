@@ -107,12 +107,21 @@ export async function getAccessContext(): Promise<AccessContext | null> {
  * Trust-boundary guard for mutating Server Actions. Returns the access context
  * for an approved, write-capable user, or an `{ error }` to return to the
  * client. Every mutating Server Action must gate through this.
+ *
+ * The approval check has to live *here*, not only in the dashboard layout: that
+ * layout never renders for a Server Action POST, and `proxy.ts` waves any
+ * request carrying a `next-action` header straight through. Rejecting a member
+ * also leaves their `user_roles` rows intact, so without this a removed member
+ * keeps every role and every write capability they had.
  */
 export async function requireWriteAccess(): Promise<
   AccessContext | { error: string }
 > {
   const ctx = await getAccessContext();
   if (!ctx) return { error: "You are not signed in." };
+  if (ctx.status !== "approved") {
+    return { error: "Your account is not approved." };
+  }
   if (ctx.isReadOnly) return { error: "Your role is read-only." };
   return ctx;
 }

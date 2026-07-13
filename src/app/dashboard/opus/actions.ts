@@ -151,7 +151,7 @@ async function revalidateBoard(domain: string) {
 /** Reads a fully-hydrated task (with subtasks) for the detail view. */
 export async function loadTaskDetailAction(taskId: string) {
   const ctx = await getAccessContext();
-  if (!ctx) return null;
+  if (!ctx || ctx.status !== "approved") return null;
   return getOpusTaskDetail(taskId);
 }
 
