@@ -144,9 +144,26 @@ first to verify before touching prod.)
 
 - **Box reliability** — home WiFi + mains power (rebooted twice + a power cut during setup).
   Wire ethernet; `cloud.fc-os.tech` is the failback.
-- **`permissions` table empty** — matches Neon prod, so RBAC is flag/role-based, not row-based.
 - **Reverse sync (local → Neon) not built** — and a one-off app-data push can't carry Better
   Auth identities into Neon Auth. The clean fix is the dual-mode design in `future-architecture.md`.
+- **Neon standby (`cloud.fc-os.tech`) has NOT had the RBAC migration** — if it is ever
+  promoted, it needs the `role_permissions` composite PK + `bun run seed` (see below)
+  *before* the app serves traffic, or every permission check returns false for everyone.
+
+### RBAC / permissions (done 2026-07-13)
+
+`permissions` + `role_permissions` are now live and are the authorization model — see
+`docs/architecture.md` `### RBAC`. Two things to know operationally:
+
+- **Seed before you deploy.** Code that reads an *empty* `role_permissions` denies
+  everything to everyone, including `role.manage` — a total org lockout recoverable only by
+  SSH. On any new DB: apply the composite PK, then `bun run seed` (idempotent), *then*
+  build/restart.
+- **Break-glass.** `president × role.manage` and `president × member.manage` are protected
+  in code (`src/lib/auth/catalog.ts`) and cannot be revoked through the grid, so an approved
+  president can always get back in. If the grid is ever wrecked anyway, `bun run seed`
+  restores the baseline (it only ever adds rows — `onConflictDoNothing`; clear
+  `role_permissions` first if you need a true reset).
 
 ## Health checklist
 

@@ -68,9 +68,13 @@ touching that area:
 
 - **`### Auth + onboarding/approval flow`** — passwordless OTP, `proxy.ts` gating, the
   two-stage onboarding/approval state machine, and the `force-dynamic` requirement.
-- **`### RBAC`** — `roles`/`permissions`/`user_roles` model, the
-  `isApprover`/`isDomainLead`/`isReadOnly` flags + `requireWriteAccess` guard, the
-  `app_settings` domain-lead approval toggle, where to enforce authorization.
+- **`### RBAC`** — authorize on **permissions, never role names**. `roles` +
+  `permissions` + `role_permissions` (the editable grid) + `user_roles`; grants resolve by
+  `roles.scope` (global = org-wide, domain = that domain only), so `canIn()` narrows to a
+  domain for free. Guard every mutating action with `requireWriteAccess(permission)`
+  (signed-in + approved + holds it), then `canIn(...)` once the domain is known. Grants are
+  additive with no deny rules — read-only roles hold nothing and must stay exclusive. Admin
+  grid at `/dashboard/settings/roles`.
 - **`### Data layer`** — schema-per-file convention, `dbActions.ts` trust boundary,
   `db.batch()` (no interactive transactions on neon-http).
 - **`### App structure`** — gated dashboard shell, `dashboard-nav.ts`, Opus.

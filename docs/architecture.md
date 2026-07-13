@@ -31,40 +31,64 @@ enforces the state machine — `no-profile` → `/onboarding`, status ≠ `appro
 
 ### RBAC
 
-Role/permission model is data-driven in the schema: `roles` (enum `role_label` from
-`member` → `president`, plus read-only `advisor` / `alumni`, each `domain`- or
-`global`-scoped), `permissions`, `role_permissions`, and `user_roles` (a user's role per
-domain — multi-domain membership = one row per domain). Domains: `technical`, `creatives`,
+Authorization is on **permissions, never role names**. Roles are a grouping; what a role
+may *do* lives in the DB and is editable at runtime.
+
+Tables: `roles` (enum `role_label`, `member` → `president` plus read-only `advisor` /
+`alumni`, each `domain`- or `global`-scoped), `permissions` (the catalog),
+`role_permissions` (the grid — who gets what), `user_roles` (a user's role per domain;
+multi-domain membership = one row per domain). Domains: `technical`, `creatives`,
 `operations`, `outreach`.
 
-`AccessContext` (`context.ts`) derives three role flags:
+The catalog is `src/lib/auth/catalog.ts` (8 permissions: `member.approve|manage|remove`,
+`settings.manage`, `role.manage`, `opus.task.manage`, `opus.config.manage`,
+`opus.task.status.own`). `seed.ts` seeds the grid. Only add a permission when the feature
+it gates exists — a checkbox that does nothing destroys trust in the grid.
 
-- **`isApprover`** — HRM / VP / President (`APPROVER_ROLES`); the sidebar hides
-  `requiresApprover` items from everyone else. Approvers also manage approved members
-  directly from the **Member Directory**: `updateMember` (edit domains/roles, reusing
-  `setMemberRoles`) and `removeMember` (soft-delete → `status = "rejected"` via
-  `setMemberDecision`) in `member-directory/actions.ts`. Guarded against self-lockout —
-  an approver cannot strip their own approver role or remove themselves. Directory
-  management is approver-only; domain leads are **not** granted it (unlike the request
-  flow's `domainLeadsCanApprove`).
-- **`isDomainLead`** — `lead` / `co-lead` (`DOMAIN_LEAD_ROLES`). When an approver enables
-  the `domainLeadsCanApprove` setting, domain leads may approve pending members **in their
-  own domain only** (`decideMember` intersects the applicant's domains with
-  `ctx.domainIds`; the Member Requests page filters its list the same way).
-- **`isReadOnly`** — `advisor` / `alumni` (`READ_ONLY_ROLES`): full view access, no
-  mutations.
+**Scope is what narrows a grant to a domain**, and it is the *only* thing that does.
+`getAuthState()` joins `user_roles ⋈ roles ⋈ role_permissions`, then `resolveGrants`
+(`src/lib/auth/permissions.ts`) folds the rows by `roles.scope`:
 
-**Enforce authorization inside the Server Action** — proxy/layout gating is not
-sufficient for mutations. Every mutating Server Action must gate through
-`requireWriteAccess()` (rejects read-only roles), then check any capability flag it needs
-(e.g. `member-requests/actions.ts`, `member-directory/actions.ts` — both gate on
-`ctx.isApprover`). The one exception is `onboarding/actions.ts`, which runs pre-profile
-(no roles yet).
+- via a **`global`** role → applies in every domain
+- via a **`domain`** role → applies only in the domain of that `user_roles` row
 
-App-wide settings live in the singleton `app_settings` table (one row, `id = 1`); read via
-`getAppSettings()`, written via `setDomainLeadsCanApprove()`. Approvers toggle
-`domainLeadsCanApprove` from the **profile page** settings modal
-(`dashboard/profile/settings-dialog.tsx`).
+So an approver (global) manages every board and a lead (domain) only their own, with no
+explicit domain check anywhere. Check grants with `can` (org-wide) / `canIn` (in a domain)
+/ `canAny` (nav gating only) / `domainsWith`. **Never branch on `ctx.roleIds`.**
+
+`resolveGrants` branches on `roles.scope` and nothing else. `user_roles` has no CHECK tying
+`domain` to scope, so inferring it from `domain IS NULL` would turn one malformed row into
+either an org-wide escalation (`('lead', NULL)`) or a lockout (`('president', 'technical')`).
+
+**Grants are additive — there are no deny rules.** Read-only roles work by holding *zero*
+permissions, which is only sound because they are **exclusive**: `checkExclusiveReadOnlyRole`
+(`src/lib/auth/roles.ts`) forbids combining `advisor`/`alumni` with any granting role. Drop
+that invariant and an alumni who also holds `lead` silently gains write access.
+
+**Enforce authorization inside the Server Action.** Proxy/layout gating is not sufficient:
+the dashboard layout never renders for a Server Action POST, and `proxy.ts` waves any
+request carrying a `next-action` header straight through. Every mutating action gates on
+`requireWriteAccess(permission)`, which checks signed-in **+ `status === "approved"` +
+holds the permission**. The approval check must live there — rejecting a member leaves
+their `user_roles` intact, so without it a removed member keeps every capability they had.
+An action touching a specific domain must *also* call `canIn(ctx.grants, permission,
+domain)` once it knows the domain; `requireWriteAccess` only does the cheap `canAny`
+precheck. `onboarding/actions.ts` is the one exception (runs pre-profile).
+
+`getAuthState()` is wrapped in React `cache()` — per-request only, so a revoked grant bites
+on the very next request. **Never** move it to `unstable_cache` / `"use cache"`.
+
+**Admin grid** — `/dashboard/settings/roles`, gated on `role.manage` (president + VP; HRM
+manages members but cannot rewrite the authority model). Writes a whole role's set at once.
+Three lockout guards, all in the Server Action: protected grants (president ×
+`role.manage`/`member.manage`) are irrevocable; you can't revoke `role.manage` from a role
+you hold; and no change may leave zero approved holders of `role.manage`/`member.manage`
+(checked *inside* the transaction, so concurrent revokes can't both commit).
+
+The old `app_settings.domainLeadsCanApprove` toggle is now just a grant: it adds/removes
+`member.approve` on `lead`/`co-lead`, and scope reproduces the own-domain-only intersection
+for free. The column survives as a mirror; drop it once the grid replaces the switch in the
+profile settings modal.
 
 ### Data layer
 
