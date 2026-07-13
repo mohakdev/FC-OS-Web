@@ -3,9 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { rolesEnum } from "@/database/schemas/roles";
 import { requireWriteAccess } from "@/lib/auth/context";
+import { canIn } from "@/lib/auth/permissions";
+import { checkExclusiveReadOnlyRole } from "@/lib/auth/roles";
 import { notifyRealtime } from "@/lib/realtime/notify";
 import {
-  getAppSettings,
   getProfileDomains,
   type RoleLabel,
   setMemberDecision,
@@ -23,19 +24,19 @@ export async function decideMember(
   decision: "approved" | "rejected",
   assignments?: RoleAssignment[],
 ): Promise<DecisionResult> {
-  const ctx = await requireWriteAccess();
+  const ctx = await requireWriteAccess("member.approve");
   if ("error" in ctx) return ctx;
 
-  // Approvers (HRM/VP/President) decide on any member. Domain leads may decide
-  // on members in their own domain, but only when an approver has enabled it.
+  // Scope does the narrowing that `domainLeadsCanApprove` + an explicit domain
+  // intersection used to do by hand: an approver holds `member.approve` via a
+  // global-scoped role, so `canIn` is true for every domain; a lead holds it via
+  // a domain-scoped role, so it is true only in the domains they lead. Granting
+  // or revoking `member.approve` on the `lead`/`co-lead` rows in the permission
+  // grid IS the old toggle.
   const memberDomains = await getProfileDomains(profileId);
-  let allowed = ctx.isApprover;
-  if (!allowed && ctx.isDomainLead) {
-    const { domainLeadsCanApprove } = await getAppSettings();
-    if (domainLeadsCanApprove) {
-      allowed = memberDomains.some((d) => ctx.domainIds.includes(d));
-    }
-  }
+  const allowed = memberDomains.some((d) =>
+    canIn(ctx.grants, "member.approve", d),
+  );
   if (!allowed) return { error: "You are not allowed to do that." };
 
   // On approve, persist the (possibly trimmed) per-domain roles. Approvers can
@@ -49,6 +50,14 @@ export async function decideMember(
       if (!allowedDomains.has(a.domain))
         return { error: "Invalid domain for this member." };
     }
+
+    // Grants are additive with no deny rules, so a read-only role must never sit
+    // alongside a granting one — see `checkExclusiveReadOnlyRole`.
+    const exclusivity = await checkExclusiveReadOnlyRole(
+      assignments.map((a) => a.role),
+    );
+    if (exclusivity) return { error: exclusivity };
+
     await setMemberRoles(
       profileId,
       assignments.map((a) => ({ role: a.role as RoleLabel, domain: a.domain })),

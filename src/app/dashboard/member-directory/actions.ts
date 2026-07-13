@@ -4,6 +4,11 @@ import { revalidatePath } from "next/cache";
 import { domainsEnum } from "@/database/schemas/domains";
 import { rolesEnum } from "@/database/schemas/roles";
 import { requireWriteAccess } from "@/lib/auth/context";
+import {
+  checkExclusiveReadOnlyRole,
+  getRoleScopes,
+  grantsForRoles,
+} from "@/lib/auth/roles";
 import { notifyRealtime } from "@/lib/realtime/notify";
 import {
   type RoleLabel,
@@ -18,50 +23,40 @@ export type RoleAssignment = { role: string; domain: string };
 const VALID_ROLES = new Set<string>(rolesEnum.enumValues);
 const VALID_DOMAINS = new Set<string>(domainsEnum.enumValues);
 
-// Roles not tied to a domain (mirrors `dbActions.setMemberRoles`). For these the
-// domain is ignored, so we don't require a valid one.
-const GLOBAL_ROLES = new Set<string>([
-  "human resource manager",
-  "vice president",
-  "president",
-  "advisor",
-  "alumni",
-]);
-
-// Approver roles (mirrors `APPROVER_ROLES` in `lib/auth/context`). Used to stop an
-// approver from demoting/removing themselves and locking out of management.
-const APPROVER_ROLES = new Set<string>([
-  "human resource manager",
-  "vice president",
-  "president",
-]);
-
 /**
  * Replaces an approved member's domain/role assignments from the directory.
- * Approver-only (President/VP/HRM); domain leads are not granted this here.
+ * Requires `member.manage`; domain leads are not granted it.
  */
 export async function updateMember(
   profileId: string,
   assignments: RoleAssignment[],
 ): Promise<ManageResult> {
-  const ctx = await requireWriteAccess();
+  const ctx = await requireWriteAccess("member.manage");
   if ("error" in ctx) return ctx;
-  if (!ctx.isApprover) return { error: "You are not allowed to do that." };
 
   if (assignments.length === 0)
     return { error: "Give the member at least one role." };
 
-  // Don't let an approver strip their own approver role and lock themselves out.
-  if (
-    profileId === ctx.userId &&
-    !assignments.some((a) => APPROVER_ROLES.has(a.role))
-  )
-    return { error: "You can't remove your own approver role." };
-
+  const scopes = await getRoleScopes();
   for (const a of assignments) {
     if (!VALID_ROLES.has(a.role)) return { error: "Invalid role." };
-    if (!GLOBAL_ROLES.has(a.role) && !VALID_DOMAINS.has(a.domain))
+    if (scopes.get(a.role) !== "global" && !VALID_DOMAINS.has(a.domain))
       return { error: "Invalid domain." };
+  }
+
+  const exclusivity = await checkExclusiveReadOnlyRole(
+    assignments.map((a) => a.role),
+  );
+  if (exclusivity) return { error: exclusivity };
+
+  // Don't let a manager strip their own `member.manage` and lock themselves out.
+  // Computed from the PROSPECTIVE grants the new assignments would produce, not
+  // from role names — the grid is editable, so "which roles are approvers" is no
+  // longer a fact the code can know.
+  if (profileId === ctx.userId) {
+    const next = await grantsForRoles(assignments.map((a) => a.role));
+    if (!next.has("member.manage"))
+      return { error: "You can't remove your own member-management role." };
   }
 
   await setMemberRoles(
@@ -76,9 +71,8 @@ export async function updateMember(
 
 /** Soft-removes a member from the directory by setting status to `rejected`. */
 export async function removeMember(profileId: string): Promise<ManageResult> {
-  const ctx = await requireWriteAccess();
+  const ctx = await requireWriteAccess("member.remove");
   if ("error" in ctx) return ctx;
-  if (!ctx.isApprover) return { error: "You are not allowed to do that." };
   if (profileId === ctx.userId) return { error: "You can't remove yourself." };
 
   await setMemberDecision(ctx.userId, profileId, "rejected");

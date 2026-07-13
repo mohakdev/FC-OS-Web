@@ -11,8 +11,8 @@ import {
 } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { getAuthState } from "@/lib/auth/context";
+import { allPermissions } from "@/lib/auth/permissions";
 import { manageableDomains } from "@/lib/opus/permissions";
-import { getAppSettings } from "@/utils/dbActions";
 
 export const metadata: Metadata = {
   title: "FC OS • Dashboard",
@@ -34,10 +34,6 @@ export default async function RootLayout({
   if (state.kind === "no-profile") redirect("/onboarding");
   if (state.ctx.status !== "approved") redirect("/pending");
 
-  const { domainLeadsCanApprove } = await getAppSettings();
-  const canApproveMembers =
-    state.ctx.isApprover || (state.ctx.isDomainLead && domainLeadsCanApprove);
-
   // Only plain serializable data may cross the RSC boundary into the client
   // sidebar — never built nav nodes (Lucide icons are functions). The sidebar
   // assembles the dynamic sub-nav from these ids client-side.
@@ -49,8 +45,7 @@ export default async function RootLayout({
         <SidebarProvider>
           <AppSidebar
             collapsible={"icon"}
-            isApprover={state.ctx.isApprover}
-            canApproveMembers={canApproveMembers}
+            permissions={allPermissions(state.ctx.grants)}
             userName={`${state.ctx.firstName} ${state.ctx.lastName}`.trim()}
             navData={navData}
           />

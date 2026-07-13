@@ -1,5 +1,6 @@
 import { Refresher } from "@/components/realtime/refresher";
 import { getAccessContext } from "@/lib/auth/context";
+import { can } from "@/lib/auth/permissions";
 import { getApprovedMembers } from "@/utils/dbActions";
 import MemberDirectoryClient from "./member-directory-client";
 
@@ -10,7 +11,9 @@ export default async function MemberDirectoryPage() {
     getApprovedMembers(),
     getAccessContext(),
   ]);
-  const canManage = ctx?.isApprover ?? false;
+  // Directory management is org-wide, so it needs the grant globally — a lead
+  // holding `member.manage` in one domain must not get the whole directory.
+  const canManage = ctx ? can(ctx.grants, "member.manage") : false;
 
   return (
     <div className="flex flex-col gap-4">

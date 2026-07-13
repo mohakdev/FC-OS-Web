@@ -2,12 +2,14 @@
 // go through validation + access control at the calling Server Action; these
 // helpers own the actual SQL.
 
-import { eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "../database/db";
 import { appSettings } from "../database/schemas/app_settings";
 import { type NewProfile, profiles } from "../database/schemas/profiles";
+import { rolePermissions } from "../database/schemas/role_permissions";
 import type { rolesEnum } from "../database/schemas/roles";
 import { userRoles } from "../database/schemas/user_roles";
+import { getRoleScopes } from "../lib/auth/roles";
 import type { OnboardingInput } from "../lib/validation/onboarding";
 
 export type RoleLabel = (typeof rolesEnum.enumValues)[number];
@@ -220,28 +222,73 @@ export const getProfile = async (profileId: string) => {
   };
 };
 
-/** Reads the singleton app settings row, falling back to defaults if unseeded. */
+// The roles the "domain leads can approve members" toggle grants `member.approve`
+// to. Both are domain-scoped, so the grant resolves only within the domains a
+// given lead actually leads — which is exactly what the old hand-written
+// `memberDomains.some(d => ctx.domainIds.includes(d))` intersection did.
+const DOMAIN_LEAD_APPROVER_ROLES = ["lead", "co-lead"] as const;
+
+/**
+ * Is the "domain leads can approve" capability currently granted?
+ *
+ * Read from the permission grid, not from `app_settings` — the grid is the
+ * source of truth now, and the column is only kept in sync as a mirror so the
+ * seed can still read the intended default. (Drop the column once the admin grid
+ * has replaced this toggle in the UI.)
+ */
 export const getAppSettings = async (): Promise<{
   domainLeadsCanApprove: boolean;
 }> => {
   const [row] = await db
-    .select({ domainLeadsCanApprove: appSettings.domainLeadsCanApprove })
-    .from(appSettings)
-    .where(eq(appSettings.id, 1))
+    .select({ permissionId: rolePermissions.permissionId })
+    .from(rolePermissions)
+    .where(
+      and(
+        eq(rolePermissions.roleId, "lead"),
+        eq(rolePermissions.permissionId, "member.approve"),
+      ),
+    )
     .limit(1);
 
-  return { domainLeadsCanApprove: row?.domainLeadsCanApprove ?? false };
+  return { domainLeadsCanApprove: Boolean(row) };
 };
 
-/** Upserts the singleton settings row to toggle domain-lead approval. */
+/**
+ * Toggles domain-lead approval by granting/revoking `member.approve` on the
+ * domain-lead roles — the toggle IS a permission grant. Keeps the legacy
+ * `app_settings` column in sync as a mirror.
+ */
 export const setDomainLeadsCanApprove = async (enabled: boolean) => {
-  await db
-    .insert(appSettings)
-    .values({ id: 1, domainLeadsCanApprove: enabled, updatedAt: new Date() })
-    .onConflictDoUpdate({
-      target: appSettings.id,
-      set: { domainLeadsCanApprove: enabled, updatedAt: new Date() },
-    });
+  await db.transaction(async (tx) => {
+    if (enabled) {
+      await tx
+        .insert(rolePermissions)
+        .values(
+          DOMAIN_LEAD_APPROVER_ROLES.map((roleId) => ({
+            roleId,
+            permissionId: "member.approve",
+          })),
+        )
+        .onConflictDoNothing();
+    } else {
+      await tx
+        .delete(rolePermissions)
+        .where(
+          and(
+            inArray(rolePermissions.roleId, [...DOMAIN_LEAD_APPROVER_ROLES]),
+            eq(rolePermissions.permissionId, "member.approve"),
+          ),
+        );
+    }
+
+    await tx
+      .insert(appSettings)
+      .values({ id: 1, domainLeadsCanApprove: enabled, updatedAt: new Date() })
+      .onConflictDoUpdate({
+        target: appSettings.id,
+        set: { domainLeadsCanApprove: enabled, updatedAt: new Date() },
+      });
+  });
 };
 
 /** Returns the domain ids a profile belongs to (from `user_roles`). */
@@ -262,30 +309,25 @@ export const getProfileDomains = async (
   ];
 };
 
-// Roles that aren't tied to a domain (mirrors `seed.ts`): leadership + HRM and
-// the read-only roles. Stored in `user_roles` with `domain = null`.
-const GLOBAL_ROLES = new Set<string>([
-  "human resource manager",
-  "vice president",
-  "president",
-  "advisor",
-  "alumni",
-]);
-
 /**
  * Replaces a profile's role assignments. Domain-scoped roles keep their domain;
  * global roles collapse to a single `domain = null` row (deduped). The
  * delete + insert run atomically in a single transaction.
+ *
+ * Which roles are global is read from `roles.scope` rather than a local copy of
+ * the list. `resolveGrants` keys off that same column, so a drifted copy here
+ * would write rows the permission resolver then interprets differently.
  */
 export const setMemberRoles = async (
   profileId: string,
   assignments: { role: RoleLabel; domain: string }[],
 ) => {
+  const scopes = await getRoleScopes();
   const seenGlobal = new Set<string>();
   const rows: NewUserRole[] = [];
 
   for (const { role, domain } of assignments) {
-    if (GLOBAL_ROLES.has(role)) {
+    if (scopes.get(role) === "global") {
       if (seenGlobal.has(role)) continue;
       seenGlobal.add(role);
       rows.push({ id: profileId, role, domain: null });

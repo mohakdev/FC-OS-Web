@@ -193,15 +193,15 @@ function getInitials(name: string) {
 }
 
 export function AppSidebar({
-  isApprover = false,
-  canApproveMembers = false,
+  permissions = [],
   userName = "",
   navData,
   ...props
 }: ComponentProps<typeof Sidebar> & {
-  isApprover?: boolean;
-  // Enabled domain leads can also reach Member Requests.
-  canApproveMembers?: boolean;
+  // Every permission the user holds, globally or in any domain. Nav items gate
+  // on `requiresPermission`; a domain lead granted `member.approve` sees Member
+  // Requests exactly as an HRM does, with no special case.
+  permissions?: string[];
   userName?: string;
   // Serializable inputs for dynamic sub-nav (icons are attached client-side
   // here, never passed across the RSC boundary).
@@ -263,9 +263,8 @@ export function AppSidebar({
         {dashboardSidebarConfig.sections.map((section) => {
           const items = section.items.filter(
             (item) =>
-              !("requiresApprover" in item && item.requiresApprover) ||
-              isApprover ||
-              (item.id === "member-requests" && canApproveMembers),
+              !item.requiresPermission ||
+              permissions.includes(item.requiresPermission),
           );
           if (items.length === 0) return null;
           return (

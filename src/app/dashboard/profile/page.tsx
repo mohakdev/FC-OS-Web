@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import CopyButton from "@/components/copy-button";
 import { Button } from "@/components/ui/button";
 import { getAccessContext } from "@/lib/auth/context";
+import { can } from "@/lib/auth/permissions";
 import { getAppSettings, getProfile } from "@/utils/dbActions";
 import SettingsDialog from "./settings-dialog";
 
@@ -26,7 +27,7 @@ export default async function ProfilePage() {
           <h1 className="font-serif text-7xl text-primary">Your Profile</h1>
         </div>
         <div className="flex flex-col sm:flex-row items-center gap-2">
-          {ctx.isApprover ? (
+          {can(ctx.grants, "settings.manage") ? (
             <SettingsDialog domainLeadsCanApprove={domainLeadsCanApprove} />
           ) : null}
           <Button variant={"outline"}>

@@ -91,6 +91,18 @@ export const canAny = (g: Grants, permission: string): boolean =>
   can(g, permission) ||
   Object.values(g.byDomain).some((perms) => perms?.includes(permission));
 
+/**
+ * Every permission the user holds, in any scope. Flattened for nav gating and
+ * for crossing the RSC boundary into the client sidebar — NOT for authorizing a
+ * mutation, which must always name a domain via `canIn`.
+ */
+export const allPermissions = (g: Grants): string[] => [
+  ...new Set([
+    ...g.global,
+    ...Object.values(g.byDomain).flatMap((p) => p ?? []),
+  ]),
+];
+
 /** Every domain where the user holds `permission` (global ⇒ all domains). */
 export const domainsWith = (
   g: Grants,

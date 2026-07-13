@@ -4,7 +4,11 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { getAccessContext, requireWriteAccess } from "@/lib/auth/context";
 import { isDomainId } from "@/lib/opus/format";
-import { canChangeTaskStatus, canManageDomain } from "@/lib/opus/permissions";
+import {
+  canChangeTaskStatus,
+  canManageConfig,
+  canManageDomain,
+} from "@/lib/opus/permissions";
 import { notifyRealtime } from "@/lib/realtime/notify";
 import {
   countTasksWithPriority,
@@ -159,7 +163,7 @@ export async function createTaskAction(
   domain: string,
   raw: TaskInputDTO,
 ): Promise<CreateResult> {
-  const ctx = await requireWriteAccess();
+  const ctx = await requireWriteAccess("opus.task.manage");
   if ("error" in ctx) return ctx;
   if (!isDomainId(domain)) return { error: "Unknown domain." };
   if (!canManageDomain(ctx, domain)) {
@@ -184,7 +188,7 @@ export async function updateTaskAction(
   taskId: string,
   raw: TaskInputDTO,
 ): Promise<ActionResult> {
-  const ctx = await requireWriteAccess();
+  const ctx = await requireWriteAccess("opus.task.manage");
   if ("error" in ctx) return ctx;
 
   const info = await getTaskAuthInfo(taskId);
@@ -213,7 +217,7 @@ export async function addSubtaskAction(
   parentTaskId: string,
   raw: TaskInputDTO,
 ): Promise<CreateResult> {
-  const ctx = await requireWriteAccess();
+  const ctx = await requireWriteAccess("opus.task.manage");
   if ("error" in ctx) return ctx;
 
   const info = await getTaskAuthInfo(parentTaskId);
@@ -251,7 +255,10 @@ export async function moveTaskAction(
   taskId: string,
   raw: z.input<typeof moveSchema>,
 ): Promise<ActionResult> {
-  const ctx = await requireWriteAccess();
+  // Loosest precheck of the two paths this action serves: assignees may move
+  // their own tasks, and managers hold `opus.task.status.own` as well — so this
+  // admits both, and `canChangeTaskStatus` below does the real domain check.
+  const ctx = await requireWriteAccess("opus.task.status.own");
   if ("error" in ctx) return ctx;
 
   const parsed = moveSchema.safeParse(raw);
@@ -294,7 +301,7 @@ export async function setTaskStatusAction(
   taskId: string,
   statusId: string,
 ): Promise<ActionResult> {
-  const ctx = await requireWriteAccess();
+  const ctx = await requireWriteAccess("opus.task.status.own");
   if ("error" in ctx) return ctx;
 
   const info = await getTaskAuthInfo(taskId);
@@ -314,7 +321,7 @@ export async function setTaskStatusAction(
 }
 
 export async function deleteTaskAction(taskId: string): Promise<ActionResult> {
-  const ctx = await requireWriteAccess();
+  const ctx = await requireWriteAccess("opus.task.manage");
   if ("error" in ctx) return ctx;
 
   const info = await getTaskAuthInfo(taskId);
@@ -336,11 +343,12 @@ async function revalidateManage(domain: string) {
   await notifyRealtime({ scope: "opus-board", domain });
 }
 
+/** Guard for the Manage area — statuses, priorities and labels (board config). */
 async function requireManager(domain: string) {
-  const ctx = await requireWriteAccess();
+  const ctx = await requireWriteAccess("opus.config.manage");
   if ("error" in ctx) return ctx;
   if (!isDomainId(domain)) return { error: "Unknown domain." };
-  if (!canManageDomain(ctx, domain)) {
+  if (!canManageConfig(ctx, domain)) {
     return { error: "You can't manage this domain." };
   }
   return ctx;

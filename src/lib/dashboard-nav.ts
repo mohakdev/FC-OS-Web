@@ -19,8 +19,8 @@ export type DashboardNavItem = {
   href: string;
   badge?: string;
   disabled?: boolean;
-  // When true, only HRM / leadership (approvers) see this item.
-  requiresApprover?: boolean;
+  // Only users holding this permission (globally or in some domain) see the item.
+  requiresPermission?: string;
   // Nested sub-navigation, rendered as a collapsible (toggle-only) group.
   children?: DashboardNavItem[];
   // When the item has children, controls whether the group starts expanded.
@@ -40,7 +40,7 @@ export type DashboardSidebarConfig = {
 
 const DASHBOARD_ROOT = "/dashboard";
 
-export const dashboardSidebarConfig = {
+export const dashboardSidebarConfig: DashboardSidebarConfig = {
   sections: [
     {
       id: "overview",
@@ -123,7 +123,7 @@ export const dashboardSidebarConfig = {
           icon: UserCheck,
           href: "/dashboard/member-requests",
           description: "Approve or reject pending members",
-          requiresApprover: true,
+          requiresPermission: "member.approve",
         },
       ],
     },
