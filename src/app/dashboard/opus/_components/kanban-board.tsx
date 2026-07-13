@@ -18,7 +18,14 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { ChevronDown, LayoutGrid, Plus, Rows3 } from "lucide-react";
+import {
+  ChevronDown,
+  FileText,
+  LayoutGrid,
+  Plus,
+  Rows3,
+  Trash2,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -27,6 +34,7 @@ import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
@@ -39,6 +47,7 @@ import {
   statusFraction,
 } from "@/lib/opus/format";
 import { usePersistedView } from "@/lib/opus/use-persisted-view";
+import { relativeTime, useTaskDrafts } from "@/lib/opus/use-task-drafts";
 import {
   addSubtaskAction,
   createTaskAction,
@@ -50,7 +59,12 @@ import { TaskCard } from "./task-card";
 import { TaskDetailDialog } from "./task-detail-dialog";
 import { TaskFieldsDialog } from "./task-fields-dialog";
 import { TaskTable } from "./task-table";
-import type { BoardTask, DomainMeta } from "./types";
+import type {
+  BoardTask,
+  DomainMeta,
+  FormValues,
+  PendingSubtask,
+} from "./types";
 
 type Columns = Record<string, string[]>;
 
@@ -208,6 +222,29 @@ export function KanbanBoard({
   const [createOpen, setCreateOpen] = useState(false);
   const [view, setView] = usePersistedView();
 
+  const { drafts, saveDraft, removeDraft } = useTaskDrafts(domain);
+  // Which draft (if any) the open create dialog came from — decides whether "Save to
+  // drafts" overwrites or adds, and which draft a successful create clears.
+  const [loadedDraftId, setLoadedDraftId] = useState<string | null>(null);
+  const [draftSeed, setDraftSeed] = useState<{
+    values: FormValues;
+    subtasks: PendingSubtask[];
+  } | null>(null);
+
+  function openBlankTask() {
+    setDraftSeed(null);
+    setLoadedDraftId(null);
+    setCreateOpen(true);
+  }
+
+  function openDraft(id: string) {
+    const draft = drafts.find((d) => d.id === id);
+    if (!draft) return;
+    setDraftSeed({ values: draft.values, subtasks: draft.subtasks });
+    setLoadedDraftId(draft.id);
+    setCreateOpen(true);
+  }
+
   // Flat, status-ordered task list for the table view — mirrors the board's ordering
   // (statuses in order, tasks in each column's order) so both views agree.
   const orderedTasks = useMemo(() => {
@@ -337,8 +374,52 @@ export function KanbanBoard({
             </DropdownMenuContent>
           </DropdownMenu>
 
+          {canManage && drafts.length > 0 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="font-medium">
+                  <FileText className="size-4" />
+                  Drafts
+                  <span className="text-muted-foreground">{drafts.length}</span>
+                  <ChevronDown className="size-4 text-muted-foreground" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-72">
+                {drafts.map((d) => (
+                  <DropdownMenuItem
+                    key={d.id}
+                    onSelect={() => openDraft(d.id)}
+                    className="flex items-center gap-2"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium capitalize">
+                        {d.title}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {relativeTime(d.savedAt)}
+                      </p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-7 shrink-0 text-muted-foreground"
+                      aria-label={`Delete draft ${d.title}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeDraft(d.id);
+                        toast.success("Draft deleted.");
+                      }}
+                    >
+                      <Trash2 className="size-3.5" />
+                    </Button>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+
           {canManage && (
-            <Button onClick={() => setCreateOpen(true)} className="font-medium">
+            <Button onClick={openBlankTask} className="font-medium">
               <Plus className="size-4" /> New task
             </Button>
           )}
@@ -402,18 +483,40 @@ export function KanbanBoard({
         <TaskFieldsDialog
           open={createOpen}
           onOpenChange={setCreateOpen}
-          heading="New task"
+          heading={loadedDraftId ? "Draft" : "New task"}
           description={`${formatDomain(domain)}`}
           submitLabel="Create task"
           meta={meta}
           showDueDate
           showSubtasks
+          initial={draftSeed?.values}
+          initialSubtasks={draftSeed?.subtasks}
+          onSaveDraft={(values, subtasks) => {
+            saveDraft({
+              id: loadedDraftId ?? crypto.randomUUID(),
+              savedAt: Date.now(),
+              title: values.title.trim() || "Untitled draft",
+              values,
+              subtasks,
+            });
+            toast.success("Draft saved.");
+          }}
+          onDiscardDraft={
+            loadedDraftId
+              ? () => {
+                  removeDraft(loadedDraftId);
+                  toast.success("Draft discarded.");
+                }
+              : undefined
+          }
           onSubmit={async (input: TaskInputDTO, subtasks: TaskInputDTO[]) => {
             const res = await createTaskAction(domain, input);
             if ("error" in res) return res;
             for (const sub of subtasks) {
               await addSubtaskAction(res.id, sub);
             }
+            // The draft became a real task — it has no reason to linger.
+            if (loadedDraftId) removeDraft(loadedDraftId);
             toast.success("Task created.");
             router.refresh();
             return { ok: true } as const;

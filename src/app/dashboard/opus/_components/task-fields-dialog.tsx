@@ -1,6 +1,14 @@
 "use client";
 
-import { Link2, Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
+import {
+  FileText,
+  Link2,
+  Loader2,
+  Pencil,
+  Plus,
+  Trash2,
+  X,
+} from "lucide-react";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -31,11 +39,11 @@ import { AssigneePicker } from "./assignee-picker";
 import { DueDatePicker } from "./due-date-picker";
 import { LabelPicker } from "./label-picker";
 import { StatusIcon } from "./status-icon";
-import type { DomainMeta, FormValues } from "./types";
+import type { DomainMeta, FormValues, PendingSubtask } from "./types";
 
 const NO_PRIORITY = "none";
 
-export type PendingSubtask = { id: string; input: TaskInputDTO; title: string };
+export type { PendingSubtask };
 
 function emptyValues(meta: DomainMeta): FormValues {
   const backlog =
@@ -77,7 +85,10 @@ export function TaskFieldsDialog({
   showDueDate,
   showSubtasks,
   initial,
+  initialSubtasks,
   onSubmit,
+  onSaveDraft,
+  onDiscardDraft,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -88,15 +99,22 @@ export function TaskFieldsDialog({
   showDueDate: boolean;
   showSubtasks: boolean;
   initial?: FormValues;
+  initialSubtasks?: PendingSubtask[];
   onSubmit: (
     input: TaskInputDTO,
     subtasks: TaskInputDTO[],
   ) => Promise<{ ok: true } | { error: string }>;
+  /** Set only by the parent-task create flow — its presence is what shows "Save to drafts". */
+  onSaveDraft?: (values: FormValues, subtasks: PendingSubtask[]) => void;
+  /** Set only when the dialog was opened from an existing draft. */
+  onDiscardDraft?: () => void;
 }) {
   const [values, setValues] = useState<FormValues>(
     initial ?? emptyValues(meta),
   );
-  const [pending, setPending] = useState<PendingSubtask[]>([]);
+  const [pending, setPending] = useState<PendingSubtask[]>(
+    initialSubtasks ?? [],
+  );
   const [subtaskOpen, setSubtaskOpen] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [isSaving, startSaving] = useTransition();
@@ -104,7 +122,7 @@ export function TaskFieldsDialog({
   // Re-seed when the dialog opens for a different task.
   const reset = () => {
     setValues(initial ?? emptyValues(meta));
-    setPending([]);
+    setPending(initialSubtasks ?? []);
   };
 
   const set = <K extends keyof FormValues>(key: K, val: FormValues[K]) =>
@@ -130,6 +148,18 @@ export function TaskFieldsDialog({
       }
       onOpenChange(false);
     });
+  }
+
+  // Drafts are a scratchpad: unlike submit(), they save whatever is on screen — a
+  // half-filled task is exactly what the user is trying not to lose.
+  function saveDraft() {
+    onSaveDraft?.(values, pending);
+    onOpenChange(false);
+  }
+
+  function discardDraft() {
+    onDiscardDraft?.();
+    onOpenChange(false);
   }
 
   return (
@@ -607,6 +637,16 @@ export function TaskFieldsDialog({
           </div>
 
           <div className="flex items-center gap-2">
+            {onDiscardDraft && (
+              <Button
+                variant={"ghost"}
+                onClick={discardDraft}
+                disabled={isSaving}
+                className="text-muted-foreground"
+              >
+                <Trash2 strokeWidth={2.5} /> Discard draft
+              </Button>
+            )}
             <Button
               variant={"destructive"}
               onClick={() => onOpenChange(false)}
@@ -614,6 +654,16 @@ export function TaskFieldsDialog({
             >
               Cancel
             </Button>
+            {onSaveDraft && (
+              <Button
+                variant={"outline"}
+                onClick={saveDraft}
+                disabled={isSaving}
+                className="font-medium"
+              >
+                <FileText strokeWidth={2.5} /> Save to drafts
+              </Button>
+            )}
             <Button onClick={submit} disabled={isSaving}>
               {isSaving && <Loader2 className="size-4 animate-spin" />}
               {submitLabel}
