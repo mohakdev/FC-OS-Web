@@ -41,7 +41,7 @@ Browser
 |-------|------|-------|
 | App | `fc-os-local` — `bun run start --port 3005`, serves prebuilt `.next` | pm2 on the box, cwd `~/hosting/fc-os-web-local` |
 | Tunnel | Tailscale Funnel `:443 → localhost:3005` | `tailscale funnel --bg --https=443 http://localhost:3005` |
-| Proxy | Cloudflare Worker forwarding `fc-os.tech` → the funnel | Cloudflare (Worker `fc-os-proxy`, `fc-os.tech` bound as Custom Domain) |
+| Proxy | Cloudflare Worker forwarding `fc-os.tech` → the funnel | Cloudflare (Worker `fc-os-proxy`, `fc-os.tech` bound as Custom Domain). Source of record: [`workers/fc-os-proxy.js`](../workers/fc-os-proxy.js) |
 
 ### Why the Worker is required (not a plain CNAME)
 
@@ -54,35 +54,26 @@ otherwise leak the `ts.net` hostname.
 
 ### The Worker
 
-```js
-const ORIGIN = "https://claw.tail3b56f7.ts.net";
+Canonical source lives in the repo at **[`workers/fc-os-proxy.js`](../workers/fc-os-proxy.js)**
+— edit it there, then paste into the Cloudflare dashboard (or `wrangler deploy`) to
+ship. The dashboard Worker and this file must stay in sync.
 
-export default {
-  async fetch(request) {
-    const inUrl = new URL(request.url);
-    const originUrl = new URL(inUrl.pathname + inUrl.search, ORIGIN);
+### Edge caching (the latency fix)
 
-    const headers = new Headers(request.headers);
-    headers.set("X-Forwarded-Host", inUrl.hostname);
-    headers.set("X-Forwarded-Proto", "https");
+Every request on this stack detours through the Tailscale **DERP relay** — SRMIST
+blocks UDP, so there is no direct path and traffic bounces via a relay region over
+443. That relay hop is what made the first load feel slow.
 
-    const resp = await fetch(new Request(originUrl, {
-      method: request.method,
-      headers,
-      body: request.body,
-      redirect: "manual",
-    }));
+The Worker cuts it by serving **immutable static assets from the Cloudflare edge**:
+`/_next/static/*`, `/_next/image`, fonts, images, `favicon.ico`, `*.js/.css/.map`.
+Next.js content-hashes these filenames, so they are safe to cache forever
+(`max-age=31536000, immutable`). On a cache hit the Worker returns from the edge and
+never touches the funnel. Only the **HTML document and API routes** still round-trip
+to the box — everything else is served near the user.
 
-    const loc = resp.headers.get("Location");
-    if (loc && loc.includes("claw.tail3b56f7.ts.net")) {
-      const h = new Headers(resp.headers);
-      h.set("Location", loc.replace(/https?:\/\/claw\.tail3b56f7\.ts\.net/g, `https://${inUrl.hostname}`));
-      return new Response(resp.body, { status: resp.status, statusText: resp.statusText, headers: h });
-    }
-    return resp;
-  },
-};
-```
+`caches.default` is per–Cloudflare-datacenter, so the *first* visitor in a region
+still pays the relay cost for each asset; subsequent visitors there are hot. A fresh
+deploy ships new hashed filenames, so it cache-busts itself — no manual purge needed.
 
 Limitation: this Worker does not proxy WebSockets. Add one if the app ever needs
 live sockets in production.
