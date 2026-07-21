@@ -71,6 +71,16 @@ Next.js content-hashes these filenames, so they are safe to cache forever
 never touches the funnel. Only the **HTML document and API routes** still round-trip
 to the box — everything else is served near the user.
 
+One gotcha the Worker has to defeat: Next.js stamps `Vary: rsc, next-router-*` on
+**every** response, static assets included. Cloudflare only honors
+`Vary: Accept-Encoding` — any other `Vary` makes it refuse to cache, so the asset
+flaps `MISS → EXPIRED → MISS` and never sticks. The Worker therefore **strips
+`Vary`** (and `Set-Cookie`, which the Cache API also refuses) on static responses;
+those bytes are identical regardless of the RSC headers, so dropping the `Vary` is
+safe. Verify caching with the Worker's own **`X-Edge-Cache: HIT|MISS`** header —
+**not** `cf-cache-status`, which Cloudflare does not surface as `HIT` for
+`caches.default` hits inside a Worker.
+
 `caches.default` is per–Cloudflare-datacenter, so the *first* visitor in a region
 still pays the relay cost for each asset; subsequent visitors there are hot. A fresh
 deploy ships new hashed filenames, so it cache-busts itself — no manual purge needed.

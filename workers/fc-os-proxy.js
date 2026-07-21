@@ -38,8 +38,15 @@ export default {
     // ---- Static assets: serve from edge cache, skip the funnel trip on hits ----
     if (cacheable) {
       const cache = caches.default;
-      const hit = await cache.match(request);
-      if (hit) return hit;
+      // Normalize the key so HEAD (curl -I) and browser GET share one entry.
+      const cacheKey = new Request(request.url, { method: "GET" });
+
+      const hit = await cache.match(cacheKey);
+      if (hit) {
+        const h = new Response(hit.body, hit);
+        h.headers.set("X-Edge-Cache", "HIT");
+        return h;
+      }
 
       const resp = await fetch(new Request(originUrl, {
         method: "GET",
@@ -50,9 +57,16 @@ export default {
       // Only cache real successes; pass failures through untouched.
       if (resp.status === 200) {
         const cached = new Response(resp.body, resp);
+        // Next stamps `Vary: rsc, next-router-*` on every response; Cloudflare only
+        // honors `Vary: Accept-Encoding`, so any other Vary blocks caching entirely
+        // (assets flap MISS -> EXPIRED -> MISS, never HIT). These are byte-identical
+        // static files, so the RSC Vary is meaningless here -> strip it.
+        cached.headers.delete("Vary");
+        cached.headers.delete("Set-Cookie"); // Cache API refuses to store with Set-Cookie
         // Next.js static filenames are content-hashed -> safe to cache forever.
         cached.headers.set("Cache-Control", "public, max-age=31536000, immutable");
-        ctx.waitUntil(cache.put(request, cached.clone()));
+        cached.headers.set("X-Edge-Cache", "MISS");
+        ctx.waitUntil(cache.put(cacheKey, cached.clone()));
         return cached;
       }
       return resp;
