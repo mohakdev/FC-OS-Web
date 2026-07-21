@@ -1,0 +1,14 @@
+{
+  // Cloudflare Worker that proxies fc-os.tech -> Tailscale Funnel -> box :3005.
+  // See docs/SELF_HOSTING.md. Deploy:  npx wrangler deploy -c workers/wrangler.jsonc
+  //
+  // Note: the `fc-os.tech` Custom Domain is attached to this Worker in the Cloudflare
+  // dashboard and is NOT declared here on purpose - Custom Domains persist across
+  // deploys and are not removed by a deploy that omits them. Do not add a conflicting
+  // `routes` entry unless you intend to manage the domain binding from config.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "fc-os-proxy",
+  "main": "fc-os-proxy.js",
+  "compatibility_date": "2025-11-01",
+  "workers_dev": false
+}
