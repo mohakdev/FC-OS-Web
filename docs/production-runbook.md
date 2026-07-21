@@ -1,20 +1,28 @@
 # FC OS — Production Runbook (self-hosted)
 
 Operational source of truth for the **live** self-hosted deployment. For the original
-step-by-step bring-up see `deploying-self-hosted.md`; for the planned dual-mode failback
-see `future-architecture.md`.
+step-by-step bring-up see `deploying-self-hosted.md`; **how the site is exposed to the
+public internet** (Tailscale Funnel + Cloudflare Worker + edge caching) lives in
+`SELF_HOSTING.md`; for the planned dual-mode failback see `future-architecture.md`.
 
 ## Topology
 
-Single home server **`claw`** (CachyOS / Arch), reached via `ssh aio` (key auth; **fish**
-login shell). Two checkouts under `~/hosting/`, both behind one Cloudflare tunnel:
+Single server **`claw`** (CachyOS / Arch), reached via `ssh aio` over Tailscale (key auth;
+**fish** login shell). One app checkout under `~/hosting/`:
 
 | Role | Dir | Branch | pm2 | Port | Public host |
 |---|---|---|---|---|---|
-| **Primary prod** | `fc-os-web-local` | `feat/local-self-hosting` | `fc-os-local` | 3005 | **fc-os.tech**, www.fc-os.tech |
-| **Standby** | `FC-OS-Web` | `main` (Neon) | `fc-os` | 3000 | cloud.fc-os.tech |
+| **Prod** | `fc-os-web-local` | `feat/local-self-hosting` | `fc-os-local` | 3005 | **fc-os.tech**, www.fc-os.tech |
 
-`local.fc-os.tech` → :3005 is a harmless alias of primary.
+The public path is **not** cloudflared. The box runs on restrictive SRMIST dorm Wi-Fi
+(all UDP blocked, TCP 7844 blocked — only 443 egresses), so cloudflared can't connect.
+Instead: **Tailscale Funnel** (`:443 → localhost:3005`) fronted by a **Cloudflare Worker**
+(`fc-os-proxy`) that fixes SNI and edge-caches static assets. Full detail + the Worker
+source: `SELF_HOSTING.md` / `workers/fc-os-proxy.js`.
+
+> The old Neon standby (`cloud.fc-os.tech`, pm2 `fc-os` on :3000) and its checkout were
+> **removed** — there is one app now. Failback is the design in `future-architecture.md`,
+> not a running second instance.
 
 ## Primary stack (fc-os.tech)
 
@@ -25,9 +33,12 @@ login shell). Two checkouts under `~/hosting/`, both behind one Cloudflare tunne
   `trustedOrigins` = apex + www.
 - **Mail** — Resend over SMTP (`smtp.resend.com:465`), sender `no-reply@fc-os.tech`
   (domain verified). API key lives only in `.env` (`SMTP_PASS`).
-- **Process** — pm2; persisted via `pm2 save` + `pm2-opdhaker.service` (both apps in the dump).
-- **Public** — cloudflared tunnel `201ebd07-…`, config at **`/etc/cloudflared/config.yml`**
-  (root-owned — *not* `~/.cloudflared/config.yml`, which is an ignored stray). DNS in Cloudflare.
+- **Process** — pm2; persisted via `pm2 save` + `pm2-opdhaker.service`.
+- **Public** — Tailscale Funnel `:443 → localhost:3005` (`tailscale funnel status` to check),
+  fronted by Cloudflare Worker `fc-os-proxy` (SNI fix + static edge cache; deploy with
+  `npx wrangler deploy -c workers/wrangler.jsonc`). `fc-os.tech` is a **Custom Domain** on
+  that Worker. cloudflared is defunct on this network (7844 blocked) and left disabled — see
+  `SELF_HOSTING.md`.
 - **Firewall** — `fcos-firewall.service` runs `/usr/local/bin/fcos-firewall.sh`, a `DOCKER-USER`
   rule dropping tcp `54320:54330` on `wlan0`+`eno1` (Docker publishes Supabase on 0.0.0.0 and
   bypasses ufw). Loopback + tailscale unaffected.
@@ -79,23 +90,28 @@ prod (`fc-os.tech`).
 soft `pm2 restart` — pm2 reuses the cached process env and `dotenv` won't override an edited value
 (this caused a Resend `535 EAUTH`). `redeploy.sh` already does the clean restart.
 
-**Roll back the apex** (serve Neon again) → restore a `/etc/cloudflared/config.yml.bak.*` then
-`ssh -t aio sudo systemctl restart cloudflared` (~30s).
+**Public path down but app up (`localhost:3005` ok, `fc-os.tech` not)** → probe top-down per
+`SELF_HOSTING.md`: `curl -I https://claw.tail3b56f7.ts.net` (funnel) then check the Worker.
+Re-arm funnel if off: `tailscale funnel --bg --https=443 http://localhost:3005`.
 
-**After reboot / power loss** → Supabase containers + both pm2 apps auto-recover. Verify
-`pm2 ls` + `curl -I https://fc-os.tech`. If Supabase is down: `cd ~/hosting/fc-os-web-local &&
+**After reboot / power loss** → Supabase containers + the pm2 app auto-recover, and the box
+re-joins SRMIST + re-auths the captive portal on its own. Verify `pm2 ls` +
+`curl -I https://fc-os.tech`. If Supabase is down: `cd ~/hosting/fc-os-web-local &&
 supabase start`, then re-run `redeploy.sh`. The `fcos-firewall` rule re-applies on boot.
+Confirm the Funnel is still on (`tailscale funnel status`).
 
 ## Secrets
 
-All in gitignored `.env` files — primary: `DATABASE_URL` (local PG), `BETTER_AUTH_SECRET`,
-`SMTP_PASS` (Resend key); standby `FC-OS-Web/.env`: Neon `DATABASE_URL` + Neon Auth creds.
-cloudflared tunnel cert/creds under `/etc/cloudflared/`. Never commit any of these.
+All in gitignored `.env` files — `DATABASE_URL` (local PG), `BETTER_AUTH_SECRET`,
+`SMTP_PASS` (Resend key). The Cloudflare Worker deploy uses `wrangler`'s own OAuth login
+(no token in the repo). Never commit any of these.
 
 ## Gotchas
 
 - **fish login shell** — wrap bash-syntax remote commands: `ssh aio 'bash -s' <<'EOF' … EOF`.
-- **cloudflared config** is `/etc/cloudflared/config.yml` (root); the service runs `--config` on it.
+- **git on the box uses SSH-over-443** (`~/.ssh/config`: `github.com → ssh.github.com:443`) —
+  SRMIST blocks port 22. Same trick from the Mac: `GIT_SSH_COMMAND='ssh -o HostName=ssh.github.com -p 443' git push`.
+- **cloudflared is defunct** on SRMIST (7844 blocked); ignore its `activating` state or disable it.
 - **sudo needs a password** (no NOPASSWD) → use `ssh -t aio sudo …` for interactive prompt.
 - **pm2 + dotenv** stale-env after `.env` edits → clean delete+start, not soft restart.
 - **Supabase CLI binds 0.0.0.0** with default `postgres/postgres` creds → mitigated by the firewall.
@@ -142,13 +158,15 @@ first to verify before touching prod.)
 
 ## Known gaps / TODO
 
-- **Box reliability** — home WiFi + mains power (rebooted twice + a power cut during setup).
-  Wire ethernet; `cloud.fc-os.tech` is the failback.
+- **Single point of failure** — one box, one app, dorm Wi-Fi + mains power (rebooted twice + a
+  power cut during setup). No live failback anymore (the Neon standby was removed). The public
+  path also depends on the Tailscale DERP relay while UDP is blocked. Wiring ethernet / moving to
+  a UDP-open network would let cloudflared work directly again and drop the relay.
 - **Reverse sync (local → Neon) not built** — and a one-off app-data push can't carry Better
   Auth identities into Neon Auth. The clean fix is the dual-mode design in `future-architecture.md`.
-- **Neon standby (`cloud.fc-os.tech`) has NOT had the RBAC migration** — if it is ever
-  promoted, it needs the `role_permissions` composite PK + `bun run seed` (see below)
-  *before* the app serves traffic, or every permission check returns false for everyone.
+- **Any future Neon promotion needs the RBAC seed first** — a fresh/parallel DB needs the
+  `role_permissions` composite PK + `bun run seed` (see below) *before* the app serves traffic,
+  or every permission check returns false for everyone.
 
 ### RBAC / permissions (done 2026-07-13)
 
@@ -167,9 +185,11 @@ first to verify before touching prod.)
 
 ## Health checklist
 
-- `pm2 ls` → `fc-os` + `fc-os-local` online.
-- `curl -I https://fc-os.tech` (primary) + `https://cloud.fc-os.tech` (standby) → 200.
-- `systemctl is-active cloudflared fcos-firewall` → active.
+- `pm2 ls` → `fc-os-local` online.
+- `curl -I https://fc-os.tech` → 200/307; `tailscale funnel status` → funnel on, `→ :3005`.
+- Static edge cache working: `curl -sI https://fc-os.tech/favicon.ico | grep -i x-edge-cache`
+  twice → `MISS` then `HIT` (see `SELF_HOSTING.md`).
+- `systemctl is-active fcos-firewall` → active. (cloudflared is defunct here — ignore it.)
 - `supabase status` healthy; Postgres bound to `127.0.0.1` and **not** reachable from the LAN
   (`nc -vz <lan-ip> 54322` from another WiFi device should refuse).
 - OTP login on fc-os.tech delivers a real email (Resend dashboard → Emails shows delivered).

@@ -203,6 +203,12 @@ pm2 startup                        # run the sudo command it prints, then `pm2 s
 
 ## 9. Expose via the existing Cloudflare Tunnel
 
+> **Restrictive network?** cloudflared needs UDP or TCP 7844. Some networks (e.g. the
+> current SRMIST dorm Wi-Fi) block both, so cloudflared can never connect. The live box
+> is exposed instead via **Tailscale Funnel + a Cloudflare Worker** — see
+> [`SELF_HOSTING.md`](./SELF_HOSTING.md). Use that path if this section's `curl` never
+> returns 200. The steps below are the happy path for a normal (UDP-open) network.
+
 Your tunnel is already configured for the domain. Point its ingress at the app and make
 sure `BETTER_AUTH_URL` (Step 4) equals that hostname.
 
@@ -241,5 +247,6 @@ pg_dump "postgres://postgres:postgres@127.0.0.1:54322/postgres" > ~/backups/fcos
 **Health checklist**
 - [ ] `pm2 status` shows `fc-os` online; `supabase status` all healthy.
 - [ ] Postgres bound to `127.0.0.1:54322` only — never expose it publicly.
-- [ ] `cloudflared` active; public domain returns 200/307.
+- [ ] Public domain returns 200/307 — via cloudflared, or the Funnel+Worker path
+      (`SELF_HOSTING.md`) on a network that blocks 7844.
 - [ ] OTP login works end-to-end on the public domain.

@@ -56,7 +56,10 @@ map, surprising cross-doc links), `graph.html` (interactive).
   newer Next than your training data (e.g. `middleware.ts` is now `proxy.ts`).
 - **Self-hosting (this branch)**: `docs/production-runbook.md` — live deploy topology, ops
   scripts (`scripts/redeploy.sh`, `scripts/sync-neon-to-local.sh`), procedures, gotchas.
-  Bring-up: `docs/deploying-self-hosted.md`. Failback design: `docs/future-architecture.md`.
+  **Public exposure** (Tailscale Funnel + Cloudflare Worker `fc-os-proxy` + static edge
+  caching, since the dorm network blocks cloudflared): `docs/SELF_HOSTING.md` /
+  `workers/fc-os-proxy.js`. Bring-up: `docs/deploying-self-hosted.md`. Failback design:
+  `docs/future-architecture.md`.
 
 ## Architecture
 
