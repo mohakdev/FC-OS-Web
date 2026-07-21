@@ -81,6 +81,12 @@ const Login = () => {
 
   const verifyCode = async (event: FormEvent) => {
     event.preventDefault();
+    // Ignore empty / autofilled-garbage submits (browsers sometimes auto-submit
+    // this form). Only a real 6-digit code goes to the server.
+    if (!/^\d{6}$/.test(otp)) {
+      toast.error("Enter the 6-digit code from your email.");
+      return;
+    }
     setLoading(true);
     try {
       const { error: signInError } = await authClient.signIn.emailOtp({
@@ -124,7 +130,9 @@ const Login = () => {
               <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
+                name="email"
                 type="email"
+                autoComplete="email"
                 placeholder="name@srmist.edu.in"
                 required
                 value={email}
@@ -155,12 +163,21 @@ const Login = () => {
               <Label htmlFor="otp">One-time code</Label>
               <Input
                 id="otp"
+                name="otp"
+                type="text"
                 inputMode="numeric"
                 autoComplete="one-time-code"
+                pattern="[0-9]*"
+                maxLength={6}
+                placeholder="6-digit code"
                 required
                 value={otp}
-                onChange={(event) => setOtp(event.target.value)}
-                className="font-sans"
+                // Digits only — stops the browser autofilling the email into
+                // this field and keeps the value a clean OTP.
+                onChange={(event) =>
+                  setOtp(event.target.value.replace(/\D/g, "").slice(0, 6))
+                }
+                className="font-sans tracking-[0.3em]"
               />
             </div>
           </CardContent>
