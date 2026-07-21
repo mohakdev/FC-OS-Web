@@ -54,9 +54,17 @@ otherwise leak the `ts.net` hostname.
 
 ### The Worker
 
-Canonical source lives in the repo at **[`workers/fc-os-proxy.js`](../workers/fc-os-proxy.js)**
-— edit it there, then paste into the Cloudflare dashboard (or `wrangler deploy`) to
-ship. The dashboard Worker and this file must stay in sync.
+Canonical source lives in the repo at **[`workers/fc-os-proxy.js`](../workers/fc-os-proxy.js)**,
+with config in [`workers/wrangler.jsonc`](../workers/wrangler.jsonc). Edit, then ship:
+
+```bash
+npx wrangler deploy -c workers/wrangler.jsonc
+```
+
+The `fc-os.tech` Custom Domain is attached to the Worker in the Cloudflare dashboard
+and persists across deploys — it is intentionally not declared in `wrangler.jsonc`,
+so a deploy never touches it. (A dashboard copy-paste also works, but `wrangler` is
+the source of record.)
 
 ### Edge caching (the latency fix)
 
