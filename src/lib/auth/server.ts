@@ -40,12 +40,15 @@ export const auth = betterAuth({
   plugins: [
     // Passwordless OTP — preserves the client `emailOtp` API the login flow uses.
     emailOTP({
+      // 10 min (Better Auth default is 300s/5min) — absorbs SMTP + read lag.
+      // Note: each new send DELETES the previous code, so only the newest is valid.
+      expiresIn: 600,
       async sendVerificationOTP({ email, otp }) {
         await mailer.sendMail({
           from: process.env.MAIL_FROM ?? "FC OS <no-reply@fc-os.tech>",
           to: email,
           subject: "Your FC OS login code",
-          text: `Your FC OS login code is ${otp}. It expires shortly.`,
+          text: `Your FC OS login code is ${otp}. It expires in 10 minutes. If you request a new code, older codes stop working.`,
         });
       },
     }),

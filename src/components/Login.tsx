@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 
 import { toast } from "sonner";
 
@@ -26,6 +26,15 @@ const Login = () => {
   const [otp, setOtp] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+
+  // Tick the resend cooldown down to 0, one second at a time.
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setTimeout(() => setResendCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [resendCooldown]);
 
   const sendCode = async (event: FormEvent) => {
     event.preventDefault();
@@ -48,6 +57,26 @@ const Login = () => {
       return;
     }
     setStep("otp");
+    setResendCooldown(30);
+  };
+
+  // Re-send a fresh code. Each send invalidates the previous one (Better Auth),
+  // so the newest email is the only one that works.
+  const resend = async () => {
+    if (resending || resendCooldown > 0) return;
+    setResending(true);
+    const { error: otpError } = await authClient.emailOtp.sendVerificationOtp({
+      email,
+      type: "sign-in",
+    });
+    setResending(false);
+    if (otpError) {
+      toast.error(otpError.message ?? "Could not send a new code.");
+      return;
+    }
+    setOtp("");
+    setResendCooldown(30);
+    toast.success("New code sent — check your inbox for the latest one.");
   };
 
   const verifyCode = async (event: FormEvent) => {
@@ -59,7 +88,11 @@ const Login = () => {
         otp,
       });
       if (signInError) {
-        toast.error(signInError.message ?? "Invalid or expired code.");
+        toast.error(
+          signInError.code === "INVALID_OTP"
+            ? "That code expired or was replaced by a newer one — tap Resend code."
+            : (signInError.message ?? "Invalid or expired code."),
+        );
         return;
       }
       // The dashboard layout routes by profile state (onboarding / pending / ok).
@@ -137,12 +170,29 @@ const Login = () => {
             </Button>
             <Button
               type="button"
+              variant="outline"
+              className="w-full"
+              disabled={resending || resendCooldown > 0}
+              onClick={resend}
+            >
+              {resending
+                ? "Sending…"
+                : resendCooldown > 0
+                  ? `Resend in ${resendCooldown}s`
+                  : "Resend code"}
+            </Button>
+            <p className="text-center text-sm text-muted-foreground">
+              Use the most recent code — older codes stop working.
+            </p>
+            <Button
+              type="button"
               variant="ghost"
               className="w-full"
               onClick={() => {
                 setStep("email");
                 setOtp("");
                 setError(null);
+                setResendCooldown(0);
               }}
             >
               Use a different email
