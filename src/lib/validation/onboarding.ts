@@ -3,11 +3,20 @@ import { z } from "zod";
 // Official org email domain. Sign-up and onboarding both require it.
 export const SRMIST_EMAIL_SUFFIX = "@srmist.edu.in";
 
+// Normalize (trim + lowercase) BEFORE validating, so a trailing space or
+// capitals don't reject an otherwise-valid address and send/verify always agree
+// on the same string. `safeParse(...).data` is the normalized email to use.
 export const srmistEmail = z
-  .email({ message: "Enter a valid email address" })
-  .refine((value) => value.toLowerCase().endsWith(SRMIST_EMAIL_SUFFIX), {
-    message: `Email must be a ${SRMIST_EMAIL_SUFFIX} address`,
-  });
+  .string()
+  .trim()
+  .toLowerCase()
+  .pipe(
+    z
+      .email({ message: "Enter a valid email address" })
+      .refine((value) => value.endsWith(SRMIST_EMAIL_SUFFIX), {
+        message: `Email must be a ${SRMIST_EMAIL_SUFFIX} address`,
+      }),
+  );
 
 // Domains a member can join (mirrors the `domain` enum / `domains` table).
 export const DOMAIN_IDS = [

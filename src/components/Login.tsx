@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { type FormEvent, useEffect, useState } from "react";
 
+import { REGEXP_ONLY_DIGITS } from "input-otp";
 import { toast } from "sonner";
 
 import { authClient } from "@/lib/auth/client";
@@ -17,6 +18,12 @@ import {
   CardTitle,
 } from "./ui/card";
 import { Input } from "./ui/input";
+import {
+  InputOTP,
+  InputOTPGroup,
+  InputOTPSeparator,
+  InputOTPSlot,
+} from "./ui/input-otp";
 import { Label } from "./ui/label";
 
 const Login = () => {
@@ -40,24 +47,34 @@ const Login = () => {
     event.preventDefault();
     setError(null);
 
+    // `.data` is normalized (trimmed + lowercased) — use it everywhere so the
+    // send and the later verify agree on the exact same address.
     const parsed = srmistEmail.safeParse(email);
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? "Enter a valid email.");
       return;
     }
+    const normalizedEmail = parsed.data;
 
     setLoading(true);
-    const { error: otpError } = await authClient.emailOtp.sendVerificationOtp({
-      email,
-      type: "sign-in",
-    });
-    setLoading(false);
-    if (otpError) {
-      setError(otpError.message ?? "Could not send the login code.");
-      return;
+    try {
+      const { error: otpError } = await authClient.emailOtp.sendVerificationOtp({
+        email: normalizedEmail,
+        type: "sign-in",
+      });
+      if (otpError) {
+        setError(otpError.message ?? "Could not send the login code.");
+        return;
+      }
+      setEmail(normalizedEmail);
+      setOtp("");
+      setStep("otp");
+      setResendCooldown(30);
+    } catch {
+      setError("Could not reach the server. Check your connection and retry.");
+    } finally {
+      setLoading(false);
     }
-    setStep("otp");
-    setResendCooldown(30);
   };
 
   // Re-send a fresh code. Each send invalidates the previous one (Better Auth),
@@ -65,36 +82,42 @@ const Login = () => {
   const resend = async () => {
     if (resending || resendCooldown > 0) return;
     setResending(true);
-    const { error: otpError } = await authClient.emailOtp.sendVerificationOtp({
-      email,
-      type: "sign-in",
-    });
-    setResending(false);
-    if (otpError) {
-      toast.error(otpError.message ?? "Could not send a new code.");
-      return;
+    try {
+      const { error: otpError } = await authClient.emailOtp.sendVerificationOtp({
+        email,
+        type: "sign-in",
+      });
+      if (otpError) {
+        toast.error(otpError.message ?? "Could not send a new code.");
+        return;
+      }
+      setOtp("");
+      setError(null);
+      setResendCooldown(30);
+      toast.success("New code sent — check your inbox for the latest one.");
+    } catch {
+      toast.error("Could not reach the server. Check your connection and retry.");
+    } finally {
+      setResending(false);
     }
-    setOtp("");
-    setResendCooldown(30);
-    toast.success("New code sent — check your inbox for the latest one.");
   };
 
-  const verifyCode = async (event: FormEvent) => {
-    event.preventDefault();
-    // Ignore empty / autofilled-garbage submits (browsers sometimes auto-submit
-    // this form). Only a real 6-digit code goes to the server.
-    if (!/^\d{6}$/.test(otp)) {
-      toast.error("Enter the 6-digit code from your email.");
+  // Core verify — shared by the "Log in" button and the auto-submit that fires
+  // once all six digits are entered/pasted.
+  const submitOtp = async (code: string) => {
+    if (!/^\d{6}$/.test(code)) {
+      setError("Enter the 6-digit code from your email.");
       return;
     }
+    setError(null);
     setLoading(true);
     try {
       const { error: signInError } = await authClient.signIn.emailOtp({
         email,
-        otp,
+        otp: code,
       });
       if (signInError) {
-        toast.error(
+        setError(
           signInError.code === "INVALID_OTP"
             ? "That code expired or was replaced by a newer one — tap Resend code."
             : (signInError.message ?? "Invalid or expired code."),
@@ -104,10 +127,15 @@ const Login = () => {
       // The dashboard layout routes by profile state (onboarding / pending / ok).
       router.push("/dashboard");
     } catch {
-      toast.error("Something went wrong. Please try again.");
+      setError("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
     }
+  };
+
+  const verifyCode = (event: FormEvent) => {
+    event.preventDefault();
+    void submitOtp(otp);
   };
 
   return (
@@ -116,7 +144,7 @@ const Login = () => {
         <CardTitle className="text-center font-serif text-3xl text-primary">
           Log In
         </CardTitle>
-        <CardDescription className="text-center font-sans">
+        <CardDescription className="text-center font-sans break-words">
           {step === "email"
             ? "We'll email you a one-time code."
             : `Enter the code sent to ${email}.`}
@@ -135,13 +163,23 @@ const Login = () => {
                 autoComplete="email"
                 placeholder="name@srmist.edu.in"
                 required
+                disabled={loading}
+                aria-invalid={error ? true : undefined}
+                aria-describedby={error ? "email-error" : undefined}
                 value={email}
-                onChange={(event) => setEmail(event.target.value)}
+                onChange={(event) => {
+                  setEmail(event.target.value);
+                  if (error) setError(null);
+                }}
                 className="font-sans"
               />
             </div>
             {error ? (
-              <p className="mt-4 text-sm text-destructive" role="alert">
+              <p
+                id="email-error"
+                className="mt-4 text-sm text-destructive"
+                role="alert"
+              >
                 {error}
               </p>
             ) : null}
@@ -161,25 +199,47 @@ const Login = () => {
           <CardContent className="my-4">
             <div className="grid gap-2">
               <Label htmlFor="otp">One-time code</Label>
-              <Input
+              <InputOTP
                 id="otp"
-                name="otp"
-                type="text"
-                inputMode="numeric"
-                autoComplete="one-time-code"
-                pattern="[0-9]*"
                 maxLength={6}
-                placeholder="6-digit code"
-                required
+                pattern={REGEXP_ONLY_DIGITS}
+                autoComplete="one-time-code"
+                autoFocus
+                disabled={loading}
+                aria-invalid={error ? true : undefined}
+                aria-describedby={error ? "otp-error" : undefined}
+                containerClassName="justify-center"
                 value={otp}
-                // Digits only — stops the browser autofilling the email into
-                // this field and keeps the value a clean OTP.
-                onChange={(event) =>
-                  setOtp(event.target.value.replace(/\D/g, "").slice(0, 6))
-                }
-                className="font-sans tracking-[0.3em]"
-              />
+                onChange={(value) => {
+                  setOtp(value);
+                  if (error) setError(null);
+                }}
+                // Auto-submit as soon as all six digits are present (typed or
+                // pasted) — the manual button below stays as a fallback.
+                onComplete={(value) => void submitOtp(value)}
+              >
+                <InputOTPGroup>
+                  <InputOTPSlot index={0} />
+                  <InputOTPSlot index={1} />
+                  <InputOTPSlot index={2} />
+                </InputOTPGroup>
+                <InputOTPSeparator />
+                <InputOTPGroup>
+                  <InputOTPSlot index={3} />
+                  <InputOTPSlot index={4} />
+                  <InputOTPSlot index={5} />
+                </InputOTPGroup>
+              </InputOTP>
             </div>
+            {error ? (
+              <p
+                id="otp-error"
+                className="mt-4 text-center text-sm text-destructive"
+                role="alert"
+              >
+                {error}
+              </p>
+            ) : null}
           </CardContent>
           <CardFooter className="flex-col gap-2">
             <Button type="submit" className="w-full" disabled={loading}>
@@ -189,7 +249,7 @@ const Login = () => {
               type="button"
               variant="outline"
               className="w-full"
-              disabled={resending || resendCooldown > 0}
+              disabled={loading || resending || resendCooldown > 0}
               onClick={resend}
             >
               {resending
@@ -205,6 +265,7 @@ const Login = () => {
               type="button"
               variant="ghost"
               className="w-full"
+              disabled={loading}
               onClick={() => {
                 setStep("email");
                 setOtp("");

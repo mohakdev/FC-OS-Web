@@ -10,7 +10,8 @@
 
 const ORIGIN = "https://claw.tail3b56f7.ts.net";
 
-const STATIC_RE = /\.(?:js|mjs|css|woff2?|ttf|otf|eot|png|jpe?g|gif|svg|ico|webp|avif|map|txt)$/i;
+const STATIC_RE =
+  /\.(?:js|mjs|css|woff2?|ttf|otf|eot|png|jpe?g|gif|svg|ico|webp|avif|map|txt)$/i;
 
 function isStatic(pathname) {
   return (
@@ -30,6 +31,13 @@ export default {
     // Tell the app what the public host really is (canonical URLs, cookies).
     headers.set("X-Forwarded-Host", inUrl.hostname);
     headers.set("X-Forwarded-Proto", "https");
+    // Give the origin a trustworthy client IP for rate limiting. `CF-Connecting-IP`
+    // is set by Cloudflare at the edge (a client cannot forge it); overwrite any
+    // client-supplied `X-Forwarded-For` with it so a spoofed header can't poison
+    // the per-client rate-limit bucket. Better Auth reads `cf-connecting-ip`
+    // (advanced.ipAddress.ipAddressHeaders in src/lib/auth/server.ts).
+    const clientIp = request.headers.get("CF-Connecting-IP");
+    if (clientIp) headers.set("X-Forwarded-For", clientIp);
 
     const cacheable =
       (request.method === "GET" || request.method === "HEAD") &&
@@ -48,11 +56,13 @@ export default {
         return h;
       }
 
-      const resp = await fetch(new Request(originUrl, {
-        method: "GET",
-        headers,
-        redirect: "manual",
-      }));
+      const resp = await fetch(
+        new Request(originUrl, {
+          method: "GET",
+          headers,
+          redirect: "manual",
+        }),
+      );
 
       // Only cache real successes; pass failures through untouched.
       if (resp.status === 200) {
@@ -64,7 +74,10 @@ export default {
         cached.headers.delete("Vary");
         cached.headers.delete("Set-Cookie"); // Cache API refuses to store with Set-Cookie
         // Next.js static filenames are content-hashed -> safe to cache forever.
-        cached.headers.set("Cache-Control", "public, max-age=31536000, immutable");
+        cached.headers.set(
+          "Cache-Control",
+          "public, max-age=31536000, immutable",
+        );
         cached.headers.set("X-Edge-Cache", "MISS");
         ctx.waitUntil(cache.put(cacheKey, cached.clone()));
         return cached;
@@ -73,19 +86,31 @@ export default {
     }
 
     // ---- Everything else (HTML, API): live proxy through the funnel ----
-    const resp = await fetch(new Request(originUrl, {
-      method: request.method,
-      headers,
-      body: request.body,
-      redirect: "manual",
-    }));
+    const resp = await fetch(
+      new Request(originUrl, {
+        method: request.method,
+        headers,
+        body: request.body,
+        redirect: "manual",
+      }),
+    );
 
     // Rewrite redirects that would leak the funnel hostname to the public domain.
     const loc = resp.headers.get("Location");
     if (loc && loc.includes("claw.tail3b56f7.ts.net")) {
       const h = new Headers(resp.headers);
-      h.set("Location", loc.replace(/https?:\/\/claw\.tail3b56f7\.ts\.net/g, `https://${inUrl.hostname}`));
-      return new Response(resp.body, { status: resp.status, statusText: resp.statusText, headers: h });
+      h.set(
+        "Location",
+        loc.replace(
+          /https?:\/\/claw\.tail3b56f7\.ts\.net/g,
+          `https://${inUrl.hostname}`,
+        ),
+      );
+      return new Response(resp.body, {
+        status: resp.status,
+        statusText: resp.statusText,
+        headers: h,
+      });
     }
     return resp;
   },
