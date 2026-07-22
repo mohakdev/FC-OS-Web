@@ -186,19 +186,53 @@ culprit.
 ```bash
 # L1  public (Cloudflare Worker + edge)
 curl -I https://fc-os.tech
-# L2  funnel + app (skips Worker/CF)
+# L2  funnel + app (skips Worker/CF) — run this from a NON-tailnet machine, see below
 curl -I https://claw.tail3b56f7.ts.net
 # L3  app direct, on the box (skips funnel)
 curl -I http://localhost:3005
 ```
+
+> **L2 lies on tailnet devices.** MagicDNS resolves `claw.tail3b56f7.ts.net` to the node's
+> tailnet IP (`100.65.21.64`), so the request never touches Tailscale's ingress and answers
+> 200 during a total outage. To really test the public path, pin the public A record — and
+> note this only works from a machine that is *not* the box itself:
+> ```bash
+> ip=$(curl -s -H 'accept: application/dns-json' \
+>   'https://cloudflare-dns.com/dns-query?name=claw.tail3b56f7.ts.net&type=A' \
+>   | jq -r '[.Answer[]?|select(.type==1)|.data]|first')
+> curl -sI --resolve "claw.tail3b56f7.ts.net:443:$ip" https://claw.tail3b56f7.ts.net/
+> ```
 
 | Symptom | Check |
 |---------|-------|
 | Runtime 500 / crash | `pm2 logs fc-os-local --lines 100` |
 | Restart loop / status | `pm2 describe fc-os-local` (watch `restarts`, `status`) |
 | Build failed on deploy | `bun run build` — read the error |
+| **L1 = 525** | **Funnel ingress, not the app.** Cloudflare can't TLS to the funnel; `journalctl -u fcos-funnel-guard -n 50` and see below |
 | L2 fails, L3 ok | Funnel: `tailscale funnel status` |
 | L1 fails, L2 ok | Worker/CF: Cloudflare dashboard → Worker → **Logs**, or `npx wrangler tail` |
+
+### 525 = stale funnel ingress (the power-cut failure)
+
+After a power cut the box auto-boots, and tailscaled can start before the NIC / campus
+captive portal is up (its log fills with `network is unreachable` bootstrap-DNS errors). It
+recovers its own tailnet connectivity, but the Funnel **ingress registration** made in that
+dead window stays stale: `tailscale funnel status` still says "Funnel on", the app is
+healthy on `:3005`, the LE cert is valid — and Tailscale's ingress servers close every
+inbound TLS connection, so Cloudflare serves **525**.
+
+This is now self-healing: **`fcos-funnel-guard`** ([`scripts/fcos-funnel-guard.sh`](../scripts/fcos-funnel-guard.sh))
+runs at boot and every 5 minutes, probes `https://fc-os.tech` (the only honest check
+available on the box — Cloudflare reports an unreachable origin as 52x), and escalates:
+re-arm the funnel → restart `tailscaled` (max once per 15 min) → log loudly and fail.
+
+```bash
+systemctl status fcos-funnel-guard.timer     # is the watchdog armed?
+journalctl -u fcos-funnel-guard -n 50        # what did it do, and when
+sudo systemctl start fcos-funnel-guard.service   # force a check now
+```
+Manual fallback if the guard itself is broken:
+`sudo tailscale funnel --https=443 off && sudo tailscale funnel --bg --https=443 http://localhost:3005`.
 
 Rule of thumb: **L3 ok but L1 down = pipe problem** (funnel/Worker), not app code.
 **L3 down = app/build problem.** Most common failure: `bun run build` fails, and a

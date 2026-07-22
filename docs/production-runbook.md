@@ -90,15 +90,19 @@ prod (`fc-os.tech`).
 soft `pm2 restart` — pm2 reuses the cached process env and `dotenv` won't override an edited value
 (this caused a Resend `535 EAUTH`). `redeploy.sh` already does the clean restart.
 
-**Public path down but app up (`localhost:3005` ok, `fc-os.tech` not)** → probe top-down per
-`SELF_HOSTING.md`: `curl -I https://claw.tail3b56f7.ts.net` (funnel) then check the Worker.
-Re-arm funnel if off: `tailscale funnel --bg --https=443 http://localhost:3005`.
+**Public path down but app up (`localhost:3005` ok, `fc-os.tech` not)** → `fcos-funnel-guard`
+should already be fixing it; check `journalctl -u fcos-funnel-guard -n 50`, or force a run with
+`sudo systemctl start fcos-funnel-guard.service`. **A 525 means the funnel ingress, not the
+app** — see the 525 section in `SELF_HOSTING.md` (and note that `curl https://claw.tail3b56f7.ts.net`
+from a tailnet device is a false green: MagicDNS short-circuits it to the tailnet IP).
+Manual re-arm: `sudo tailscale funnel --https=443 off && sudo tailscale funnel --bg --https=443 http://localhost:3005`.
 
-**After reboot / power loss** → Supabase containers + the pm2 app auto-recover, and the box
-re-joins SRMIST + re-auths the captive portal on its own. Verify `pm2 ls` +
-`curl -I https://fc-os.tech`. If Supabase is down: `cd ~/hosting/fc-os-web-local &&
-supabase start`, then re-run `redeploy.sh`. The `fcos-firewall` rule re-applies on boot.
-Confirm the Funnel is still on (`tailscale funnel status`).
+**After reboot / power loss** → nothing to do by hand. Supabase containers + the pm2 app
+auto-recover, the box re-joins SRMIST + re-auths the captive portal, the `fcos-firewall` rule
+re-applies, and `fcos-funnel-guard.service` re-arms the Funnel once the network is really up
+(then re-checks every 5 min via `fcos-funnel-guard.timer`). Verify with `curl -I https://fc-os.tech`
+→ 200/307. If Supabase is down: `cd ~/hosting/fc-os-web-local && supabase start`, then re-run
+`redeploy.sh`.
 
 ## Secrets
 

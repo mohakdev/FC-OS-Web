@@ -244,8 +244,26 @@ bunx drizzle-kit push --config drizzle.config.ts
 pg_dump "postgres://postgres:postgres@127.0.0.1:54322/postgres" > ~/backups/fcos-(date +%F).sql
 ```
 
+### Funnel watchdog (Funnel+Worker path only)
+
+On the Funnel path, install the guard that re-arms the Funnel after a power cut and every
+5 minutes thereafter — without it, a boot where tailscaled starts before the network leaves
+the site serving 525 until someone notices ([`SELF_HOSTING.md`](./SELF_HOSTING.md#525--stale-funnel-ingress-the-power-cut-failure)):
+
+```fish
+sudo tailscale set --operator=$USER   # once, so funnel ops don't need sudo
+sudo install -m 755 scripts/fcos-funnel-guard.sh /usr/local/sbin/
+sudo install -m 644 scripts/systemd/fcos-funnel-guard.service scripts/systemd/fcos-funnel-guard.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now fcos-funnel-guard.timer fcos-funnel-guard.service
+```
+
+The script hardcodes the funnel hostname, app port, and public URL at the top — edit those
+if any of them change.
+
 **Health checklist**
 - [ ] `pm2 status` shows `fc-os` online; `supabase status` all healthy.
+- [ ] On the Funnel path: `systemctl status fcos-funnel-guard.timer` is active.
 - [ ] Postgres bound to `127.0.0.1:54322` only — never expose it publicly.
 - [ ] Public domain returns 200/307 — via cloudflared, or the Funnel+Worker path
       (`SELF_HOSTING.md`) on a network that blocks 7844.

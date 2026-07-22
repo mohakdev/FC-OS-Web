@@ -1,0 +1,14 @@
+# Watchdog tick for fcos-funnel-guard.service. See the .service header for install steps.
+# Power cuts are the loud case; the quiet one is the dorm network flapping mid-day and the
+# funnel ingress going stale without anything restarting.
+[Unit]
+Description=FC OS funnel watchdog
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+Persistent=true
+RandomizedDelaySec=30
+
+[Install]
+WantedBy=timers.target

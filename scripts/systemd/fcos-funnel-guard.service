@@ -1,0 +1,29 @@
+# Keeps the Tailscale Funnel actually reachable from the public internet (see
+# scripts/fcos-funnel-guard.sh for the why). System unit — it needs root to bounce
+# tailscaled and pm2-opdhaker.
+#
+# Install: sudo cp scripts/fcos-funnel-guard.sh /usr/local/sbin/
+#          sudo chmod +x /usr/local/sbin/fcos-funnel-guard.sh
+#          sudo cp scripts/systemd/fcos-funnel-guard.{service,timer} /etc/systemd/system/
+#          sudo systemctl daemon-reload
+#          sudo systemctl enable --now fcos-funnel-guard.timer fcos-funnel-guard.service
+[Unit]
+Description=FC OS: verify and repair the Tailscale Funnel ingress
+# The campus captive portal must be through before any of this means anything — that
+# ordering is exactly what the boot-time failure was.
+After=network-online.target tailscaled.service srmist-portal-refresh.service
+Wants=network-online.target tailscaled.service
+# No start limit: a wedged unit is the one thing that must never happen here, since this
+# is what brings the public site back. Retries come from the 5-minute timer, and the
+# script itself already waits (up to 5 min) for the network and tailscaled at boot.
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/fcos-funnel-guard.sh
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+TimeoutStartSec=600
+Nice=5
+
+[Install]
+WantedBy=multi-user.target
