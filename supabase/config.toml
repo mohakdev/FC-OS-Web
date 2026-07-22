@@ -368,7 +368,13 @@ authorization_url_path = "/oauth/consent"
 allow_dynamic_registration = false
 
 [edge_runtime]
-enabled = true
+# DISABLED on purpose. The CLI's generated main worker imports https://deno.land/std/... at
+# boot, and deno.land is blocked on the SRMIST network (A 69.67.170.170 unreachable over v4,
+# only an AAAA is resolved by the campus DNS and the box has no IPv6). The edge container
+# therefore fails to boot — and worse, `supabase start` treats that as fatal and tears the
+# WHOLE stack down, taking the prod database with it (hit 2026-07-23).
+# Flip back to true only on a network that can reach deno.land. See docs/production-runbook.md.
+enabled = false
 # Supported request policies: `oneshot`, `per_worker`.
 # `per_worker` (default) — enables hot reload during local development.
 # `oneshot` — fallback mode if hot reload causes issues (e.g. in large repos or with symlinks).

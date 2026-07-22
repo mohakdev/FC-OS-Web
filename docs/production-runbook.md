@@ -105,13 +105,25 @@ re-applies `unless-stopped` to every Supabase container and starts anything that
 Verify with `curl -I https://fc-os.tech` → 200/307. If Supabase is down:
 `cd ~/hosting/fc-os-web-local && supabase start`, then re-run `redeploy.sh`.
 
-**Edge runtime down (`supabase_edge_runtime_fc-os-web` exited)** → `fcos-supabase-guard`
-handles it; force a run with `sudo systemctl start fcos-supabase-guard.service` and read
-`journalctl -u fcos-supabase-guard -n 50`. The CLI recreates that container with restart
-policy `no` on every `supabase stop && supabase start`, which is exactly what the guard
-re-applies. Liveness endpoint: `curl -i http://127.0.0.1:54321/functions/v1/health` — a
-healthy stack answers **401** without a key (functions verify JWT); 5xx means the runtime
-is dead.
+**⚠️ `supabase start` can take the prod DB down.** If the edge runtime is enabled, its boot
+failure is fatal to the *whole* command — the CLI prints `main worker boot error`, then
+`Stopping containers...`, and you are left with **no database**. That is why
+`[edge_runtime] enabled = false` in `supabase/config.toml`. Recovery if it happens: disable
+edge_runtime, `supabase start` again, verify with
+`docker exec supabase_db_fc-os-web pg_isready -U postgres`. Data survives (it lives in the
+docker volume), and `neon-app-data*.sql` / the nightly backups are the fallback.
+
+**Edge functions don't run on this network.** The CLI's generated main worker imports
+`https://deno.land/std/...` at boot and **deno.land is blocked on SRMIST** — campus DNS
+answers with an AAAA only (`2602:f70f::1`), the box has no IPv6, and the IPv4 address
+(`69.67.170.170`) is unreachable too. Verified from both the box and a laptop. This is why
+the container had been dead since 2026-06-25. To actually use functions: run them on a
+network that can reach deno.land, or proxy deno.land through the Cloudflare Worker and
+point an import map at it. `fcos-supabase-guard` treats an absent edge container as normal.
+
+**Supabase container down** → `fcos-supabase-guard` re-applies `unless-stopped` (the CLI
+keeps resetting it) and starts anything stopped; force a run with
+`sudo systemctl start fcos-supabase-guard.service`, read `journalctl -u fcos-supabase-guard -n 50`.
 
 ## Secrets
 

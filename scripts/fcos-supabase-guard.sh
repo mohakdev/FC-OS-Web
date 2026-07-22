@@ -44,6 +44,13 @@ while read -r c; do
 done <<< "$containers"
 
 # ------------------------------------------------------------ functions probe ----
+# The edge runtime is currently disabled in supabase/config.toml (deno.land is blocked on
+# this network, see the comment there), so the container simply does not exist. That is a
+# normal state, not a fault — skip the probe instead of failing every 10 minutes.
+if ! docker inspect "$EDGE" >/dev/null 2>&1; then
+  exit 0
+fi
+
 # Docker saying "running" is not the same as the runtime serving. Probe through kong.
 # No auth header on purpose: functions default to verify_jwt, so a healthy stack answers
 # 401 and we never have to handle the anon key here. A dead runtime gives 5xx instead.
