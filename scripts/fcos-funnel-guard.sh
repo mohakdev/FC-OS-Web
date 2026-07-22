@@ -118,8 +118,18 @@ if ! wait_ready; then
 fi
 
 if ! have_internet; then
-  log "no internet uplink; nothing to fix here"
-  exit 0
+  # Most likely the campus captive portal, not the link. srmist-portal-ensure.sh retries 6x
+  # on a `wlan0 up` event and then gives up until its 20h timer — so if the AP came back
+  # slowly after a power cut, the box can sit walled-garden'd for hours with nobody asking
+  # again. This 5-minute tick is that missing retry.
+  log "no internet uplink; kicking the captive-portal login"
+  systemctl start srmist-portal-login.service
+  sleep 20
+  if ! have_internet; then
+    log "still no uplink after portal login; retrying on the next tick"
+    exit 0
+  fi
+  log "uplink restored via portal login"
 fi
 
 # The app itself. The funnel only proxies :3005, so a dead app looks like a dead site.
