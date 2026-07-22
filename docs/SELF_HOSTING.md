@@ -121,6 +121,41 @@ no knob to stop the rewrite, so it cannot be fixed in the Worker.
 **If you ever add another public hostname, add it there too** or all mutations break on
 it. Keep the entries exact — no wildcards, or the CSRF check loses its value.
 
+### Gotcha: the build must not need the internet
+
+The box builds on the SRMIST campus wifi, which intermittently blocks all outbound HTTPS
+(DNS still resolves, and Tailscale keeps working — so the box looks online while
+`git pull` and any build-time fetch fail). A build that reaches out to the network is a
+deploy that fails at random.
+
+`next/font/google` downloads font files at build time, so it used to break deploys with:
+
+```
+next/font: error: Failed to fetch `Geist` from Google Fonts.
+```
+
+The fonts are now **vendored** in [`src/app/fonts/`](../src/app/fonts) (latin subset,
+straight from Google Fonts) and loaded with `next/font/local` in
+[`src/app/layout.tsx`](../src/app/layout.tsx). Keep it that way — do not reintroduce
+`next/font/google`, and apply the same rule to anything else that would fetch during
+`bun run build`.
+
+When outbound is down, `git pull` on the box fails too. Ship the commit over the
+already-working Tailscale SSH link with a bundle instead:
+
+```bash
+# on your machine (<base> = the commit the box is currently on)
+git bundle create /tmp/fix.bundle <base>..feat/local-self-hosting
+scp /tmp/fix.bundle aio:/tmp/fix.bundle
+
+# on the box — note it runs fish, so wrap scripted work in `bash -s`
+cd ~/hosting/fc-os-web-local
+git pull --ff-only /tmp/fix.bundle feat/local-self-hosting
+```
+
+Then run `scripts/redeploy.sh`'s remaining steps (install → build → clean pm2 restart →
+health check) by hand; step 1 of that script is the `git pull` you just replaced.
+
 ## Deploy an update
 
 Pushing to GitHub does **not** update the running site. `next start` serves the
