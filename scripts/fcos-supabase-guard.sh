@@ -14,6 +14,7 @@ set -uo pipefail
 PROJECT="fc-os-web"
 EDGE="supabase_edge_runtime_${PROJECT}"
 FUNCTIONS_URL="http://127.0.0.1:54321/functions/v1/health"
+CONFIG="/home/opdhaker/hosting/fc-os-web-local/supabase/config.toml"
 
 log() { logger -t fcos-supabase-guard -- "$*"; echo "fcos-supabase-guard: $*"; }
 
@@ -44,10 +45,22 @@ while read -r c; do
 done <<< "$containers"
 
 # ------------------------------------------------------------ functions probe ----
-# The edge runtime is currently disabled in supabase/config.toml (deno.land is blocked on
-# this network, see the comment there), so the container simply does not exist. That is a
-# normal state, not a fault — skip the probe instead of failing every 10 minutes.
+# The edge runtime is disabled in supabase/config.toml on this box (deno.land is blocked on
+# this network, see the comment there). Then kong answers 503 on /functions/v1/ forever and
+# a stale container may still be lying around from an earlier start — neither is a fault, so
+# don't probe and don't fail every 10 minutes. Config is the authority, not the container.
+edge_enabled() {
+  [[ -f "$CONFIG" ]] || return 0   # config unreadable: assume enabled, probe as usual
+  awk '/^\[edge_runtime\]/{f=1;next} /^\[/{f=0} f && /^enabled[[:space:]]*=/{print;exit}' \
+    "$CONFIG" | grep -q 'true'
+}
+
+if ! edge_enabled; then
+  exit 0
+fi
+
 if ! docker inspect "$EDGE" >/dev/null 2>&1; then
+  log "edge runtime enabled in config but the container does not exist — run 'supabase start'"
   exit 0
 fi
 
