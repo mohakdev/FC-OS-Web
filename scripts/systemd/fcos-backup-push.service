@@ -1,0 +1,20 @@
+# Morning catch-up for fcos-backup: push whatever last night failed to push, without
+# taking a second dump. Exists because a single failed `git push` at 03:00 (campus network
+# mid-reconnect) used to leave the offsite copy stale indefinitely — it sat 7 days behind
+# before anyone looked.
+#
+# Install: cp scripts/systemd/fcos-backup-push.{service,timer} ~/.config/systemd/user/
+#          systemctl --user daemon-reload
+#          systemctl --user enable --now fcos-backup-push.timer
+[Unit]
+Description=FC OS backup: push pending commits to GitHub
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/hosting/fc-os-web-local/scripts/backup-to-github.sh --push-only
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+Nice=10
+StandardOutput=append:%h/.local/state/fcos-backup.log
+StandardError=append:%h/.local/state/fcos-backup.log

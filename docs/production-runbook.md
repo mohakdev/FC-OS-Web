@@ -155,8 +155,21 @@ dedicated SSH deploy key. GitHub only ever sees ciphertext. Working dir keeps th
 - **Schedule**: user units `scripts/systemd/fcos-backup.{service,timer}` → `~/.config/systemd/user/`,
   `systemctl --user enable --now fcos-backup.timer` (+ `loginctl enable-linger opdhaker`). Fires
   03:00 daily, `Persistent=true` so a run missed during downtime fires on next boot.
-- **Status**: `systemctl --user list-timers | grep fcos-backup`;
-  logs `journalctl --user -u fcos-backup`.
+- **Catch-up push**: `scripts/systemd/fcos-backup-push.{service,timer}` → same install path,
+  `systemctl --user enable --now fcos-backup-push.timer`. Runs `backup-to-github.sh --push-only`
+  at 11:00 and 19:00 — pushes whatever a failed 03:00 run left local, without taking a second
+  dump.
+- **Status**: `systemctl --user list-timers | grep fcos-backup`; log file
+  `~/.local/state/fcos-backup.log` (**not** `journalctl --user` — the user journal is not
+  persisted on this box, which is why three failed pushes went unnoticed).
+- **Freshness gate**: each run reports how old `origin/main` is and **exits non-zero if the
+  offsite copy is older than 48h** or if the push failed after 3 retries. Check the tail of the
+  log; `cd ~/hosting/fc-os-db-backups && git status -sb` shows `ahead N` when commits are stuck
+  on the box.
+
+> **Past failure (2026-07-22)**: the offsite copy was **7 days stale** — three nightly runs
+> committed locally but their single `git push` failed (network down at 03:00) and nothing ever
+> retried. The retries, catch-up timer, log file, and 48h gate above all exist because of it.
 
 ### One-time setup (run once on the box)
 

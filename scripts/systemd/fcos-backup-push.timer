@@ -1,0 +1,14 @@
+# Catch-up trigger for fcos-backup-push.service. See the .service header.
+# Twice during the day, when the campus network is reliably up — the 03:00 dump run is the
+# one that tends to find it down.
+[Unit]
+Description=FC OS backup catch-up push
+
+[Timer]
+OnCalendar=*-*-* 11:00:00
+OnCalendar=*-*-* 19:00:00
+Persistent=true
+RandomizedDelaySec=600
+
+[Install]
+WantedBy=timers.target

@@ -14,3 +14,9 @@ ExecStart=%h/hosting/fc-os-web-local/scripts/backup-to-github.sh
 # pg_dump/age/git live in the usual PATHs; keep it explicit for a clean systemd env.
 Environment=PATH=/usr/local/bin:/usr/bin:/bin
 Nice=10
+# The user journal is not persisted on this box — `journalctl --user -u fcos-backup` came
+# back empty while three nightly pushes were quietly failing. Keep our own log instead.
+StandardOutput=append:%h/.local/state/fcos-backup.log
+StandardError=append:%h/.local/state/fcos-backup.log
+# (No Restart= here: systemd forbids it on Type=oneshot. The morning catch-up is
+# fcos-backup-push.timer, which re-pushes without taking another dump.)
