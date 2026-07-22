@@ -1,0 +1,23 @@
+# Keeps the local Supabase stack (notably the edge runtime, which the CLI creates with
+# restart policy `no`) alive across reboots. See scripts/fcos-supabase-guard.sh.
+#
+# Install: sudo install -m 755 scripts/fcos-supabase-guard.sh /usr/local/sbin/
+#          sudo install -m 644 scripts/systemd/fcos-supabase-guard.{service,timer} /etc/systemd/system/
+#          sudo systemctl daemon-reload
+#          sudo systemctl enable --now fcos-supabase-guard.timer fcos-supabase-guard.service
+[Unit]
+Description=FC OS: keep the Supabase stack and edge runtime up
+After=docker.service
+Wants=docker.service
+# No start limit — same reasoning as fcos-funnel-guard: the repair path must never wedge.
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/fcos-supabase-guard.sh
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+TimeoutStartSec=300
+Nice=5
+
+[Install]
+WantedBy=multi-user.target

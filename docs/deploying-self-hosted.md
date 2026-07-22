@@ -261,6 +261,26 @@ sudo systemctl enable --now fcos-funnel-guard.timer fcos-funnel-guard.service
 The script hardcodes the funnel hostname, app port, and public URL at the top — edit those
 if any of them change.
 
+### Supabase stack watchdog
+
+The Supabase CLI creates `supabase_edge_runtime_<project>` with restart policy `no` (every
+other container gets `unless-stopped`), so it never comes back after a reboot — and the CLI
+resets that policy on each `supabase stop && supabase start`. Install the guard that
+re-applies it:
+
+```fish
+sudo install -m 755 scripts/fcos-supabase-guard.sh /usr/local/sbin/
+sudo install -m 644 scripts/systemd/fcos-supabase-guard.service scripts/systemd/fcos-supabase-guard.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now fcos-supabase-guard.timer fcos-supabase-guard.service
+```
+
+Edge functions live in `supabase/functions/`; `supabase/functions/health/index.ts` is the
+liveness endpoint the guard probes. They are served by kong on `54321`, which
+`fcos-firewall.sh` restricts to loopback + tailnet — **nothing under `/functions/v1/` is
+reachable from the public internet**. Exposing one would mean adding a route to
+[`workers/fc-os-proxy.js`](../workers/fc-os-proxy.js).
+
 **Health checklist**
 - [ ] `pm2 status` shows `fc-os` online; `supabase status` all healthy.
 - [ ] On the Funnel path: `systemctl status fcos-funnel-guard.timer` is active.

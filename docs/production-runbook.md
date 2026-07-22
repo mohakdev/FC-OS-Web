@@ -99,10 +99,19 @@ Manual re-arm: `sudo tailscale funnel --https=443 off && sudo tailscale funnel -
 
 **After reboot / power loss** → nothing to do by hand. Supabase containers + the pm2 app
 auto-recover, the box re-joins SRMIST + re-auths the captive portal, the `fcos-firewall` rule
-re-applies, and `fcos-funnel-guard.service` re-arms the Funnel once the network is really up
-(then re-checks every 5 min via `fcos-funnel-guard.timer`). Verify with `curl -I https://fc-os.tech`
-→ 200/307. If Supabase is down: `cd ~/hosting/fc-os-web-local && supabase start`, then re-run
-`redeploy.sh`.
+re-applies, `fcos-funnel-guard.service` re-arms the Funnel once the network is really up
+(then re-checks every 5 min via `fcos-funnel-guard.timer`), and `fcos-supabase-guard.service`
+re-applies `unless-stopped` to every Supabase container and starts anything that stayed down.
+Verify with `curl -I https://fc-os.tech` → 200/307. If Supabase is down:
+`cd ~/hosting/fc-os-web-local && supabase start`, then re-run `redeploy.sh`.
+
+**Edge runtime down (`supabase_edge_runtime_fc-os-web` exited)** → `fcos-supabase-guard`
+handles it; force a run with `sudo systemctl start fcos-supabase-guard.service` and read
+`journalctl -u fcos-supabase-guard -n 50`. The CLI recreates that container with restart
+policy `no` on every `supabase stop && supabase start`, which is exactly what the guard
+re-applies. Liveness endpoint: `curl -i http://127.0.0.1:54321/functions/v1/health` — a
+healthy stack answers **401** without a key (functions verify JWT); 5xx means the runtime
+is dead.
 
 ## Secrets
 
