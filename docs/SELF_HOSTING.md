@@ -96,6 +96,31 @@ deploy ships new hashed filenames, so it cache-busts itself — no manual purge 
 Limitation: this Worker does not proxy WebSockets. Add one if the app ever needs
 live sockets in production.
 
+### Gotcha: the Funnel clobbers `X-Forwarded-Host` (breaks every Server Action)
+
+The Worker sets `X-Forwarded-Host: fc-os.tech` so the app knows its public host — but
+the **Funnel is the last hop and overwrites it** with `claw.tail3b56f7.ts.net`. Next.js
+runs a CSRF check on every Server Action POST requiring `Origin` to match
+`X-Forwarded-Host`, so it saw `fc-os.tech` vs `claw.tail3b56f7.ts.net` and aborted
+**every mutation in the app**:
+
+```
+`x-forwarded-host` header with value `claw.tail3b56f7.ts.net` does not match `origin`
+header with value `fc-os.tech` from a forwarded Server Actions request. Aborting the action.
+⨯ Error: Invalid Server Actions request.
+```
+
+This fails silently in the UI and is easy to misread as a permissions bug. Login keeps
+working throughout, because Better Auth goes through `/api/auth/*` route handlers rather
+than Server Actions.
+
+Fix lives in [`next.config.ts`](../next.config.ts) —
+`experimental.serverActions.allowedOrigins` lists the real public origins. Tailscale has
+no knob to stop the rewrite, so it cannot be fixed in the Worker.
+
+**If you ever add another public hostname, add it there too** or all mutations break on
+it. Keep the entries exact — no wildcards, or the CSRF check loses its value.
+
 ## Deploy an update
 
 Pushing to GitHub does **not** update the running site. `next start` serves the
