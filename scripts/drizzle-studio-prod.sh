@@ -70,8 +70,11 @@ STUDIO_PID=$!
 
 # 6. Wait for studio, then open the browser.
 if wait_for_port "$STUDIO_PORT"; then
-  echo "── Opening ${STUDIO_URL}"
-  open "$STUDIO_URL" 2>/dev/null || echo "Open ${STUDIO_URL} manually."
+  echo "── Opening ${STUDIO_URL} in Arc"
+  # Arc (Chromium) — Safari/WebKit blocks the studio's self-signed-cert XHR to :4983.
+  open -a "Arc" "$STUDIO_URL" 2>/dev/null \
+    || open "$STUDIO_URL" 2>/dev/null \
+    || echo "Open ${STUDIO_URL} manually (use a Chromium browser)."
 else
   echo "Studio port ${STUDIO_PORT} never came up — open ${STUDIO_URL} manually." >&2
 fi
