@@ -5,12 +5,16 @@
 // `role_permissions` grid already hold this, and duplicating them in TypeScript
 // is how they drift.
 
-import { inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { cache } from "react";
 
 import { db } from "@/database/db";
+import { profiles } from "@/database/schemas/profiles";
 import { rolePermissions } from "@/database/schemas/role_permissions";
 import { roles } from "@/database/schemas/roles";
+import { userRoles } from "@/database/schemas/user_roles";
+import type { PermissionId } from "./catalog";
+import { MUST_HAVE_A_HOLDER } from "./lockout";
 
 /** `roleId -> scope`, straight from the `roles` table. Per-request cached. */
 export const getRoleScopes = cache(
@@ -36,6 +40,65 @@ export async function grantsForRoles(roleIds: string[]): Promise<Set<string>> {
     // biome-ignore lint/suspicious/noExplicitAny: enum-typed column, ids validated by caller
     .where(inArray(rolePermissions.roleId, roleIds as any));
   return new Set(rows.map((r) => r.permissionId));
+}
+
+/**
+ * Every permission the given roles grant ORG-WIDE — the `global`-scoped ones
+ * only.
+ *
+ * The scope-blind `grantsForRoles` is the wrong tool for any "will this person
+ * still be able to open that page?" question: the pages behind `role.manage` and
+ * `member.manage` gate on `can()` (global), so a permission held through a
+ * domain-scoped role does not keep their access.
+ */
+export async function globalGrantsForRoles(
+  roleIds: string[],
+): Promise<Set<string>> {
+  const scopes = await getRoleScopes();
+  return grantsForRoles(roleIds.filter((r) => scopes.get(r) === "global"));
+}
+
+/** `db`, or the handle passed into a `db.transaction` callback. */
+type Executor = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * Which of `MUST_HAVE_A_HOLDER` currently have at least one approved holder via
+ * a `global`-scoped role.
+ *
+ * Take this before and after a write and diff it with `missingAfter` — that is
+ * the org-lockout invariant, and it is the same one on all three write paths
+ * that can break it: the permission grid (`role_permissions`), role assignment
+ * (`user_roles`) and approval decisions (`profiles.status`).
+ *
+ * Pass the transaction handle so the reading and the write are one atomic unit;
+ * two admins each revoking concurrently would otherwise both see a count of 1
+ * and both commit.
+ */
+export async function heldMustHavePermissions(
+  exec: Executor = db,
+): Promise<PermissionId[]> {
+  const held: PermissionId[] = [];
+
+  for (const permission of MUST_HAVE_A_HOLDER) {
+    const holders = await exec
+      .select({ userId: userRoles.id })
+      .from(rolePermissions)
+      .innerJoin(roles, eq(roles.id, rolePermissions.roleId))
+      .innerJoin(userRoles, eq(userRoles.role, rolePermissions.roleId))
+      .innerJoin(profiles, eq(profiles.id, userRoles.id))
+      .where(
+        and(
+          eq(rolePermissions.permissionId, permission),
+          eq(roles.scope, "global"),
+          eq(profiles.status, "approved"),
+        ),
+      )
+      .limit(1);
+
+    if (holders.length > 0) held.push(permission);
+  }
+
+  return held;
 }
 
 /**

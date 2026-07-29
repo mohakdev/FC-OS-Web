@@ -9,7 +9,8 @@ import { type NewProfile, profiles } from "../database/schemas/profiles";
 import { rolePermissions } from "../database/schemas/role_permissions";
 import type { rolesEnum } from "../database/schemas/roles";
 import { userRoles } from "../database/schemas/user_roles";
-import { getRoleScopes } from "../lib/auth/roles";
+import { lockoutMessage, missingAfter } from "../lib/auth/lockout";
+import { getRoleScopes, heldMustHavePermissions } from "../lib/auth/roles";
 import type { OnboardingInput } from "../lib/validation/onboarding";
 
 export type RoleLabel = (typeof rolesEnum.enumValues)[number];
@@ -257,6 +258,11 @@ export const getAppSettings = async (): Promise<{
  * Toggles domain-lead approval by granting/revoking `member.approve` on the
  * domain-lead roles — the toggle IS a permission grant. Keeps the legacy
  * `app_settings` column in sync as a mirror.
+ *
+ * Writes `role_permissions` without the org-lockout invariant the permission
+ * grid runs, and that is fine: it only ever touches `member.approve`, which is
+ * not in `MUST_HAVE_A_HOLDER`. Widen the columns it may touch and that stops
+ * being true.
  */
 export const setDomainLeadsCanApprove = async (enabled: boolean) => {
   await db.transaction(async (tx) => {
@@ -317,6 +323,12 @@ export const getProfileDomains = async (
  * Which roles are global is read from `roles.scope` rather than a local copy of
  * the list. `resolveGrants` keys off that same column, so a drifted copy here
  * would write rows the permission resolver then interprets differently.
+ *
+ * Being the single writer of `user_roles`, this is also where the org-lockout
+ * invariant belongs for this path: demoting the club's only president would
+ * otherwise leave `role.manage` granted to a role nobody holds — permanently,
+ * since reaching the permission grid needs that same permission. THROWS on that;
+ * callers turn it into a toast.
  */
 export const setMemberRoles = async (
   profileId: string,
@@ -340,25 +352,39 @@ export const setMemberRoles = async (
     }
   }
 
-  if (rows.length === 0) {
-    await db.delete(userRoles).where(eq(userRoles.id, profileId));
-    return;
-  }
-
   await db.transaction(async (tx) => {
+    const before = await heldMustHavePermissions(tx);
+
     await tx.delete(userRoles).where(eq(userRoles.id, profileId));
-    await tx.insert(userRoles).values(rows);
+    if (rows.length > 0) await tx.insert(userRoles).values(rows);
+
+    const lost = missingAfter(before, await heldMustHavePermissions(tx));
+    if (lost.length > 0) throw new Error(lockoutMessage(lost));
   });
 };
 
-/** Records an HRM/leadership approval decision + audit. */
+/**
+ * Records an HRM/leadership approval decision + audit.
+ *
+ * Runs the org-lockout invariant too: the holder count only counts *approved*
+ * profiles, so rejecting (or removing, which is a rejection) the last approved
+ * president empties `role.manage` just as thoroughly as unticking the box would.
+ * THROWS on that; callers turn it into a toast.
+ */
 export const setMemberDecision = async (
   approverId: string,
   profileId: string,
   status: "approved" | "rejected",
 ) => {
-  await db
-    .update(profiles)
-    .set({ status, approvedBy: approverId, decidedAt: new Date() })
-    .where(eq(profiles.id, profileId));
+  await db.transaction(async (tx) => {
+    const before = await heldMustHavePermissions(tx);
+
+    await tx
+      .update(profiles)
+      .set({ status, approvedBy: approverId, decidedAt: new Date() })
+      .where(eq(profiles.id, profileId));
+
+    const lost = missingAfter(before, await heldMustHavePermissions(tx));
+    if (lost.length > 0) throw new Error(lockoutMessage(lost));
+  });
 };

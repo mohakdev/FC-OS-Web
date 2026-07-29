@@ -1,19 +1,23 @@
 "use server";
 
-import { and, eq, inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { db } from "@/database/db";
-import { profiles } from "@/database/schemas/profiles";
 import { rolePermissions } from "@/database/schemas/role_permissions";
 import { rolesEnum } from "@/database/schemas/roles";
-import { userRoles } from "@/database/schemas/user_roles";
+import { isProtectedGrant, PERMISSION_IDS } from "@/lib/auth/catalog";
+import { requireGlobalWriteAccess } from "@/lib/auth/context";
 import {
-  isProtectedGrant,
-  PERMISSION_IDS,
-  type PermissionId,
-} from "@/lib/auth/catalog";
-import { requireWriteAccess } from "@/lib/auth/context";
+  keepsPermission,
+  lockoutMessage,
+  missingAfter,
+} from "@/lib/auth/lockout";
+import {
+  getRoleScopes,
+  grantsForRoles,
+  heldMustHavePermissions,
+} from "@/lib/auth/roles";
 import { notifyRealtime } from "@/lib/realtime/notify";
 
 export type GridResult = { ok: true } | { error: string };
@@ -22,11 +26,6 @@ type RoleId = (typeof rolesEnum.enumValues)[number];
 
 const VALID_ROLES = new Set<string>(rolesEnum.enumValues);
 const VALID_PERMISSIONS = new Set<string>(PERMISSION_IDS);
-
-// Capabilities that must never end up with nobody holding them. Losing
-// `role.manage` means nobody can open this page again; losing `member.manage`
-// means nobody can fix a member's roles.
-const MUST_HAVE_A_HOLDER: PermissionId[] = ["role.manage", "member.manage"];
 
 /**
  * Replaces one role's entire permission set.
@@ -40,16 +39,22 @@ const MUST_HAVE_A_HOLDER: PermissionId[] = ["role.manage", "member.manage"];
  *
  *  1. Protected grants (`PROTECTED_GRANTS`) can never be revoked. As long as one
  *     approved president exists, the org can always get back into this page.
- *  2. You may not revoke `role.manage` from a role you yourself hold.
- *  3. No change may leave zero approved users holding a must-have permission.
- *     Checked inside the transaction, so two admins revoking concurrently can't
- *     each see a count of 1 and both commit.
+ *  2. You may not revoke `role.manage` from YOURSELF. The test is capability
+ *     loss, not membership of the edited role: this rewrites the whole club's
+ *     authority model, so holding the role being edited is normal and must not
+ *     block the save while another global role of yours still grants it.
+ *  3. No change may take the org's last approved holder of a must-have
+ *     permission. Checked inside the transaction, so two admins revoking
+ *     concurrently can't each see a count of 1 and both commit.
+ *
+ * The grid is org-wide with no domain to narrow to, hence
+ * `requireGlobalWriteAccess` — see its docblock.
  */
 export async function setRolePermissions(
   roleId: string,
   permissionIds: string[],
 ): Promise<GridResult> {
-  const ctx = await requireWriteAccess("role.manage");
+  const ctx = await requireGlobalWriteAccess("role.manage");
   if ("error" in ctx) return ctx;
 
   if (!VALID_ROLES.has(roleId)) return { error: "Unknown role." };
@@ -68,15 +73,38 @@ export async function setRolePermissions(
     }
   }
 
-  // (2) Don't let an admin revoke role management from their own role.
-  if (ctx.roleIds.includes(roleId) && !next.has("role.manage")) {
-    return {
-      error: "You can't remove role management from a role you hold yourself.",
-    };
+  // (2) Don't let an admin revoke role management from themselves. Only worth
+  // simulating when they hold the role at all — editing a role you don't hold
+  // cannot touch your own grants.
+  if (ctx.roleIds.includes(roleId)) {
+    const scopes = await getRoleScopes();
+    const otherGrants = await Promise.all(
+      ctx.roleIds
+        .filter((r) => r !== roleId)
+        .map(async (r) => [r, await grantsForRoles([r])] as const),
+    );
+
+    const keeps = keepsPermission({
+      heldRoles: ctx.roleIds,
+      editedRoleId: roleId,
+      nextPermissions: next,
+      grantsByRole: new Map(otherGrants),
+      scopes,
+      permission: "role.manage",
+    });
+
+    if (!keeps) {
+      return {
+        error:
+          "That would remove your own ability to manage roles. Grant it to another role you hold first.",
+      };
+    }
   }
 
   try {
     await db.transaction(async (tx) => {
+      const before = await heldMustHavePermissions(tx);
+
       await tx
         .delete(rolePermissions)
         .where(eq(rolePermissions.roleId, roleId as RoleId));
@@ -90,31 +118,9 @@ export async function setRolePermissions(
         );
       }
 
-      // (3) Someone must still hold each must-have permission.
-      for (const permission of MUST_HAVE_A_HOLDER) {
-        const holders = await tx
-          .select({ userId: userRoles.id })
-          .from(rolePermissions)
-          .innerJoin(userRoles, eq(userRoles.role, rolePermissions.roleId))
-          .innerJoin(profiles, eq(profiles.id, userRoles.id))
-          .where(
-            and(
-              eq(rolePermissions.permissionId, permission),
-              eq(profiles.status, "approved"),
-            ),
-          )
-          .limit(1);
-
-        if (holders.length === 0) {
-          throw new Error(
-            `That would leave nobody able to ${
-              permission === "role.manage"
-                ? "manage roles and permissions"
-                : "manage members"
-            }.`,
-          );
-        }
-      }
+      // (3) The change may not take the last holder of a must-have permission.
+      const lost = missingAfter(before, await heldMustHavePermissions(tx));
+      if (lost.length > 0) throw new Error(lockoutMessage(lost));
     });
   } catch (err) {
     return {
@@ -136,7 +142,7 @@ export async function setRolePermissions(
 export async function getPermissionGrid(): Promise<
   Record<string, string[]> | { error: string }
 > {
-  const ctx = await requireWriteAccess("role.manage");
+  const ctx = await requireGlobalWriteAccess("role.manage");
   if ("error" in ctx) return ctx;
 
   const rows = await db

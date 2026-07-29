@@ -9,6 +9,7 @@ import { roles } from "@/database/schemas/roles";
 import { userRoles } from "@/database/schemas/user_roles";
 import type { PermissionId } from "./catalog";
 import {
+  can,
   canAny,
   EMPTY_GRANTS,
   type GrantRow,
@@ -152,6 +153,33 @@ export async function requireWriteAccess(
     return { error: "Your account is not approved." };
   }
   if (!canAny(ctx.grants, permission)) {
+    return { error: "You are not allowed to do that." };
+  }
+  return ctx;
+}
+
+/**
+ * Same guard, for actions whose effect is ORG-WIDE and so have no domain to
+ * narrow to — rewriting the role→permission grid, or editing any member's roles
+ * from the directory.
+ *
+ * `requireWriteAccess`'s `canAny` precheck is unsafe on its own for these: it
+ * passes for a permission held through a domain-scoped role, and with no
+ * follow-up `canIn` the holder acts across the whole club. Ticking
+ * `member.manage` on the `lead` row would hand every lead the entire directory,
+ * and ticking `role.manage` there would let them grant themselves anything.
+ * Both pages already gate on global `can()`, so this only closes the gap between
+ * what the page shows and what the Server Action accepts.
+ */
+export async function requireGlobalWriteAccess(
+  permission: PermissionId,
+): Promise<AccessContext | { error: string }> {
+  const ctx = await getAccessContext();
+  if (!ctx) return { error: "You are not signed in." };
+  if (ctx.status !== "approved") {
+    return { error: "Your account is not approved." };
+  }
+  if (!can(ctx.grants, permission)) {
     return { error: "You are not allowed to do that." };
   }
   return ctx;

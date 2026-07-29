@@ -188,7 +188,8 @@ export function PermissionGrid({
             <span className="font-medium text-foreground">
               {currentUserRoles.join(", ")}
             </span>
-            ; you can&apos;t remove role management from your own role.
+            . You can edit those rows freely — including removing role
+            management — as long as one global role you hold still grants it.
           </>
         ) : null}
       </p>

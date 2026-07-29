@@ -58,13 +58,32 @@ export async function decideMember(
     );
     if (exclusivity) return { error: exclusivity };
 
-    await setMemberRoles(
-      profileId,
-      assignments.map((a) => ({ role: a.role as RoleLabel, domain: a.domain })),
-    );
+    try {
+      await setMemberRoles(
+        profileId,
+        assignments.map((a) => ({
+          role: a.role as RoleLabel,
+          domain: a.domain,
+        })),
+      );
+    } catch (err) {
+      return {
+        error: err instanceof Error ? err.message : "Could not save the roles.",
+      };
+    }
   }
 
-  await setMemberDecision(ctx.userId, profileId, decision);
+  try {
+    // Rejecting drops an approved holder — if it were the club's last one,
+    // `setMemberDecision` refuses rather than locking the org out.
+    await setMemberDecision(ctx.userId, profileId, decision);
+  } catch (err) {
+    return {
+      error:
+        err instanceof Error ? err.message : "Could not record the decision.",
+    };
+  }
+
   revalidatePath("/dashboard/member-requests");
   await notifyRealtime({ scope: "member" });
   return { ok: true };

@@ -3,11 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { domainsEnum } from "@/database/schemas/domains";
 import { rolesEnum } from "@/database/schemas/roles";
-import { requireWriteAccess } from "@/lib/auth/context";
+import { requireGlobalWriteAccess } from "@/lib/auth/context";
 import {
   checkExclusiveReadOnlyRole,
   getRoleScopes,
-  grantsForRoles,
+  globalGrantsForRoles,
 } from "@/lib/auth/roles";
 import { notifyRealtime } from "@/lib/realtime/notify";
 import {
@@ -25,13 +25,16 @@ const VALID_DOMAINS = new Set<string>(domainsEnum.enumValues);
 
 /**
  * Replaces an approved member's domain/role assignments from the directory.
- * Requires `member.manage`; domain leads are not granted it.
+ *
+ * Requires `member.manage` held GLOBALLY: the directory spans the whole club and
+ * this action takes no domain to narrow to, so a domain-scoped grant would act
+ * org-wide. See `requireGlobalWriteAccess`.
  */
 export async function updateMember(
   profileId: string,
   assignments: RoleAssignment[],
 ): Promise<ManageResult> {
-  const ctx = await requireWriteAccess("member.manage");
+  const ctx = await requireGlobalWriteAccess("member.manage");
   if ("error" in ctx) return ctx;
 
   if (assignments.length === 0)
@@ -52,30 +55,54 @@ export async function updateMember(
   // Don't let a manager strip their own `member.manage` and lock themselves out.
   // Computed from the PROSPECTIVE grants the new assignments would produce, not
   // from role names — the grid is editable, so "which roles are approvers" is no
-  // longer a fact the code can know.
+  // longer a fact the code can know. Global-scoped grants only: this page is
+  // gated on `can()`, so keeping `member.manage` through a domain role would
+  // still lock them out of it.
   if (profileId === ctx.userId) {
-    const next = await grantsForRoles(assignments.map((a) => a.role));
+    const next = await globalGrantsForRoles(assignments.map((a) => a.role));
     if (!next.has("member.manage"))
       return { error: "You can't remove your own member-management role." };
   }
 
-  await setMemberRoles(
-    profileId,
-    assignments.map((a) => ({ role: a.role as RoleLabel, domain: a.domain })),
-  );
+  try {
+    await setMemberRoles(
+      profileId,
+      assignments.map((a) => ({ role: a.role as RoleLabel, domain: a.domain })),
+    );
+  } catch (err) {
+    // The org-lockout invariant lives in the data layer, on the single writer of
+    // `user_roles`. Surface it as a toast rather than a 500.
+    return {
+      error:
+        err instanceof Error ? err.message : "Could not update the member.",
+    };
+  }
 
   revalidatePath("/dashboard/member-directory");
   await notifyRealtime({ scope: "member" });
   return { ok: true };
 }
 
-/** Soft-removes a member from the directory by setting status to `rejected`. */
+/**
+ * Soft-removes a member from the directory by setting status to `rejected`.
+ * Org-wide, so `member.remove` must be held globally — same reasoning as
+ * `updateMember`.
+ */
 export async function removeMember(profileId: string): Promise<ManageResult> {
-  const ctx = await requireWriteAccess("member.remove");
+  const ctx = await requireGlobalWriteAccess("member.remove");
   if ("error" in ctx) return ctx;
   if (profileId === ctx.userId) return { error: "You can't remove yourself." };
 
-  await setMemberDecision(ctx.userId, profileId, "rejected");
+  try {
+    // Removing the club's last approved president would strip `role.manage`
+    // from everyone — `setMemberDecision` refuses that.
+    await setMemberDecision(ctx.userId, profileId, "rejected");
+  } catch (err) {
+    return {
+      error:
+        err instanceof Error ? err.message : "Could not remove the member.",
+    };
+  }
 
   revalidatePath("/dashboard/member-directory");
   await notifyRealtime({ scope: "member" });

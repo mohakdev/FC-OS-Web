@@ -75,15 +75,38 @@ An action touching a specific domain must *also* call `canIn(ctx.grants, permiss
 domain)` once it knows the domain; `requireWriteAccess` only does the cheap `canAny`
 precheck. `onboarding/actions.ts` is the one exception (runs pre-profile).
 
+**Org-wide actions gate on `requireGlobalWriteAccess` instead** — the permission grid, the
+member directory (`updateMember`/`removeMember`) and the app-settings toggle. They have no
+domain to narrow to, so the `canAny` precheck would be the *whole* check and a domain-scoped
+grant would act club-wide: ticking `member.manage` on `lead` would hand every lead the
+directory. Their pages already gate on global `can()`; this closes the gap between what the
+page shows and what the action accepts.
+
 `getAuthState()` is wrapped in React `cache()` — per-request only, so a revoked grant bites
 on the very next request. **Never** move it to `unstable_cache` / `"use cache"`.
 
-**Admin grid** — `/dashboard/settings/roles`, gated on `role.manage` (president + VP; HRM
-manages members but cannot rewrite the authority model). Writes a whole role's set at once.
-Three lockout guards, all in the Server Action: protected grants (president ×
-`role.manage`/`member.manage`) are irrevocable; you can't revoke `role.manage` from a role
-you hold; and no change may leave zero approved holders of `role.manage`/`member.manage`
-(checked *inside* the transaction, so concurrent revokes can't both commit).
+**Admin grid** — `/dashboard/settings/roles`, gated on global `role.manage` (president + VP;
+HRM manages members but cannot rewrite the authority model). Writes a whole role's set at
+once. Three lockout guards, all in the Server Action: protected grants (president ×
+`role.manage`/`member.manage`) are irrevocable; you can't revoke `role.manage` from
+*yourself*; and no change may take the org's last approved holder of
+`role.manage`/`member.manage` (checked *inside* the transaction, so concurrent revokes can't
+both commit).
+
+The self-guard tests **capability loss, not membership of the edited role** — holding the
+role you are editing is normal, so it only fires when no other *global* role of yours would
+still grant `role.manage` (`keepsPermission`, `src/lib/auth/lockout.ts`). The membership
+version of it blocked every save on any row the editor held, including rows that never had
+`role.manage` at all.
+
+**The lockout invariant belongs on every write path, not just the grid**, because three
+different writes can empty it: `role_permissions` (the grid), `user_roles` (demote the only
+president — `setMemberRoles`) and `profiles.status` (reject or remove them —
+`setMemberDecision`; holders are counted only among *approved* profiles). All three take
+`heldMustHavePermissions` before and after the write inside one transaction and fail on
+`missingAfter` — "don't make it worse" rather than "must be non-empty", so a fresh seed with
+no approved users can still approve its first president. Holders count only via
+`global`-scoped roles, since both pages the invariant protects gate on `can()`.
 
 The old `app_settings.domainLeadsCanApprove` toggle is now just a grant: it adds/removes
 `member.approve` on `lead`/`co-lead`, and scope reproduces the own-domain-only intersection
