@@ -1,6 +1,7 @@
 import {
   AudioLines,
   BookUser,
+  Bug,
   CircleUserRound,
   LayoutDashboard,
   type LucideIcon,
@@ -111,6 +112,13 @@ export const dashboardSidebarConfig: DashboardSidebarConfig = {
           icon: BookUser,
           href: "/dashboard/member-directory",
           description: "Browse and contact club members",
+        },
+        {
+          id: "bug-reports",
+          label: "Bug Reports",
+          icon: Bug,
+          href: "/dashboard/bug-reports",
+          description: "Report and track FC OS bugs",
         },
       ],
     },

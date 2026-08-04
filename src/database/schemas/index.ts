@@ -2,6 +2,7 @@ export * from "./activity";
 export * from "./app_settings";
 export * from "./attendance";
 export * from "./auth";
+export * from "./bug_reports";
 export * from "./domains";
 export * from "./opus_labels";
 export * from "./opus_priorities";

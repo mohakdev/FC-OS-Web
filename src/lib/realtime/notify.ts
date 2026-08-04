@@ -10,7 +10,8 @@ export const REALTIME_CHANNEL = "fc_realtime";
  */
 export type RealtimeEvent =
   | { scope: "opus-board"; domain: string }
-  | { scope: "member" };
+  | { scope: "member" }
+  | { scope: "bug-report" };
 
 /**
  * Broadcast a realtime signal to every Node process listening on the channel.

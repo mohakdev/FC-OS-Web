@@ -52,6 +52,12 @@ export const PERMISSIONS = [
     description:
       "Change the status of a task you are assigned to. Status is the only field a non-manager assignee may change.",
   },
+  {
+    id: "bug.manage",
+    label: "Manage bug reports",
+    description:
+      "Mark bug reports fixed, reopen them, and delete them. Filing a report needs no permission — every approved member can.",
+  },
 ] as const;
 
 export type PermissionId = (typeof PERMISSIONS)[number]["id"];

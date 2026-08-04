@@ -73,8 +73,8 @@ const BASE_GRANTS: Record<RoleId, PermissionId[]> = {
   "co-lead": OPUS_MANAGER,
   lead: OPUS_MANAGER,
   "human resource manager": APPROVER,
-  "vice president": [...APPROVER, "role.manage"],
-  president: [...APPROVER, "role.manage"],
+  "vice president": [...APPROVER, "role.manage", "bug.manage"],
+  president: [...APPROVER, "role.manage", "bug.manage"],
   // Read-only roles hold nothing. This is only sound because they are exclusive
   // (see `assertExclusiveReadOnlyRole` in dbActions) — an alumni who also held
   // `lead` would gain write access under an additive union of grants, where
