@@ -1,7 +1,15 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
+import { cookies } from "next/headers";
 import "@/styles/globals.css";
+import { ThemeProvider } from "@/components/theme/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
+import {
+  DEFAULT_THEME,
+  isThemeId,
+  THEME_COOKIE,
+  themeClassName,
+} from "@/lib/themes";
 import { cn } from "@/lib/utils";
 
 // Fonts are vendored (latin subset, straight from Google Fonts) rather than pulled
@@ -57,16 +65,22 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Read server-side so the very first paint is already on the chosen palette.
+  // `next-themes` handles the light/dark half with its own pre-paint script, so
+  // <html> carries no mode class here — hence suppressHydrationWarning.
+  const cookieTheme = (await cookies()).get(THEME_COOKIE)?.value;
+  const activeTheme = isThemeId(cookieTheme) ? cookieTheme : DEFAULT_THEME;
+
   return (
     <html
       lang="en"
+      suppressHydrationWarning
       className={cn(
-        "dark",
         "h-full",
         "antialiased",
         serif.variable,
@@ -74,9 +88,13 @@ export default function RootLayout({
         "font-sans",
       )}
     >
-      <body className="min-h-full flex flex-col">
-        {children}
-        <Toaster />
+      <body
+        className={cn("min-h-full flex flex-col", themeClassName(activeTheme))}
+      >
+        <ThemeProvider initialTheme={activeTheme}>
+          {children}
+          <Toaster />
+        </ThemeProvider>
       </body>
     </html>
   );

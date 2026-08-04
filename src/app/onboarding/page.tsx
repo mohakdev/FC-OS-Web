@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 
+import { ThemeSelector } from "@/components/theme/theme-selector";
 import { getAuthState } from "@/lib/auth/context";
 import OnboardingForm from "./onboarding-form";
 
@@ -14,6 +15,7 @@ export default async function OnboardingPage() {
 
   return (
     <main className="flex min-h-svh items-center justify-center bg-background p-4">
+      <ThemeSelector variant="floating" />
       <OnboardingForm />
     </main>
   );

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { type ComponentProps, useState } from "react";
 import { toast } from "sonner";
+import { ThemeSelector } from "@/components/theme/theme-selector";
 import {
   Collapsible,
   CollapsibleContent,
@@ -308,6 +309,9 @@ export function AppSidebar({
                 </span>
               </Link>
             </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <ThemeSelector className="text-sidebar-foreground/70" />
           </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton

@@ -1,6 +1,7 @@
-import Image from "next/image";
 import Link from "next/link";
 
+import { HeroBackground } from "@/components/theme/hero-background";
+import { ThemeSelector } from "@/components/theme/theme-selector";
 import { getAuthState } from "@/lib/auth/context";
 
 export const dynamic = "force-dynamic";
@@ -11,15 +12,8 @@ const HomePage = async () => {
 
   return (
     <main className="relative flex h-svh max-h-svh flex-1 overflow-hidden bg-background">
-      <Image
-        src="/hero-bg.png"
-        alt=""
-        fill
-        priority
-        sizes="100vw"
-        className="object-cover object-center opacity-70"
-      />
-      <div className="absolute inset-0 " />
+      <HeroBackground />
+      <ThemeSelector variant="floating" />
       <div className="relative z-10 flex w-full items-center justify-center flex-col mb-40">
         <div className="max-w-xl rounded-2xl font-serif text-9xl tracking-tight">
           FC OS

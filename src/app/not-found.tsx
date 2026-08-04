@@ -2,6 +2,7 @@ import { LayoutDashboard } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { NotFoundGlitch } from "@/components/not-found-glitch";
+import { ThemeSelector } from "@/components/theme/theme-selector";
 import { Button } from "@/components/ui/button";
 
 export const metadata: Metadata = {
@@ -11,6 +12,7 @@ export const metadata: Metadata = {
 export default function NotFound() {
   return (
     <div className="not-found-in flex min-h-[80vh] flex-col items-center justify-center gap-6 px-6 text-center">
+      <ThemeSelector variant="floating" />
       <NotFoundGlitch />
 
       <div className="space-y-2">
