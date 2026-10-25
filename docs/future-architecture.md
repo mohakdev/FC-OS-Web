@@ -28,7 +28,7 @@ that's only partial — see `production-runbook.md` "Known gaps". This is the cl
      that touches listen/notify). Everything else — hub, SSE route, client — stays unchanged.
 2. **Prep the Neon standby**: push the self-host schema to Neon and migrate `neon_auth.user` →
    `public.user` (same as was done locally) so it's actually ready to spin up.
-3. Bidirectional sync script + runbook (FK-safe). Forward (`sync-neon-to-local.sh`) already exists.
+3. Bidirectional sync script + runbook (FK-safe). A forward Neon → local script existed (`sync-neon-to-local.sh`, removed in the Coolify move; in git history).
 4. Close the pre-merge gates: confirm RBAC (`permissions` empty but flag-based) via an approver/feature pass.
 5. Then merge `feat/local-self-hosting` → `main`, with `main` = the dual-mode self-hosted code.
 

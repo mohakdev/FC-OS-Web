@@ -54,11 +54,11 @@ map, surprising cross-doc links), `graph.html` (interactive).
 - **Database / migrations workflow**: `docs/how-to-database.md`, `docs/pushing-migrations.md`
 - **Next.js 16 specifics**: `AGENTS.md` + `node_modules/next/dist/docs/` — this is a
   newer Next than your training data (e.g. `middleware.ts` is now `proxy.ts`).
-- **Self-hosting (this branch)**: `docs/production-runbook.md` — live deploy topology, ops
-  scripts (`scripts/redeploy.sh`, `scripts/sync-neon-to-local.sh`), procedures, gotchas.
+- **Self-hosting (this branch)**: Coolify on box `claw`. `docs/production-runbook.md` — stack,
+  box-level settings, backups, health checklist.
   **Public exposure** (Tailscale Funnel + Cloudflare Worker `fc-os-proxy` + static edge
   caching, since the dorm network blocks cloudflared): `docs/SELF_HOSTING.md` /
-  `workers/fc-os-proxy.js`. Bring-up: `docs/deploying-self-hosted.md`. Failback design:
+  `workers/fc-os-proxy.js` (+ Caddy host shim `scripts/caddy/Caddyfile`). Failback design:
   `docs/future-architecture.md`.
 
 ## Architecture
