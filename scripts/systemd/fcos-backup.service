@@ -10,8 +10,8 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
-ExecStart=%h/hosting/fc-os-web-local/scripts/backup-to-github.sh
-# pg_dump/age/git live in the usual PATHs; keep it explicit for a clean systemd env.
+ExecStart=%h/fc-os-web/scripts/backup-to-github.sh
+# docker/pg_dump/age/git live in the usual PATHs; keep it explicit for a clean systemd env.
 Environment=PATH=/usr/local/bin:/usr/bin:/bin
 Nice=10
 # The user journal is not persisted on this box — `journalctl --user -u fcos-backup` came

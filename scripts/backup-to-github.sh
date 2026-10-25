@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Encrypted DB backup -> private GitHub repo (free offsite storage). AIO-box specific.
 #
-# Dumps the local Supabase Postgres (fc-os.tech's prod DB), compresses, encrypts
+# Dumps the Coolify Postgres (fc-os.tech's prod DB), compresses, encrypts
 # with `age`, and commits+pushes the ciphertext to a private backup repo over a
 # dedicated SSH deploy key. GitHub only ever sees encrypted blobs.
 #
-# STANDALONE / NON-AGENTIC: pure shell + coreutils + pg_dump/gzip/age/git. No
+# STANDALONE / NON-AGENTIC: pure shell + coreutils + pg_dump (or docker)/gzip/age/git. No
 # Claude, no network calls beyond the git push. Safe to run from cron/systemd
 # forever, independent of any AI usage limits.
 #
@@ -13,8 +13,8 @@
 # docs/production-runbook.md ("Backups"). Config lives OUTSIDE the repo in
 # ~/.config/fcos-backup/backup.env so no secrets are committed here.
 #
-#   bash ~/hosting/fc-os-web-local/scripts/backup-to-github.sh
-#   bash ~/hosting/fc-os-web-local/scripts/backup-to-github.sh --push-only
+#   bash ~/fc-os-web/scripts/backup-to-github.sh
+#   bash ~/fc-os-web/scripts/backup-to-github.sh --push-only
 #
 # --push-only skips the dump and just pushes whatever is unpushed, then applies the
 # freshness gate. That is the morning catch-up for a night when the campus network was
@@ -31,12 +31,20 @@ CONFIG="${FCOS_BACKUP_CONFIG:-$HOME/.config/fcos-backup/backup.env}"
 
 # --- Config -----------------------------------------------------------------
 # backup.env must define: BACKUP_REPO_DIR, AGE_RECIPIENT
-# and may override:       KEEP (default 30), LOCAL_URL, SSH_KEY, MIN_BYTES
+# and may override:       KEEP (default 30), LOCAL_URL, SSH_KEY, MIN_BYTES,
+#                         DUMP_CONTAINER (+ DUMP_USER / DUMP_DB, default postgres)
+#
+# DUMP_CONTAINER: the Coolify Postgres runs on an internal Docker network with no host
+# port, so dump it with `docker exec <container> pg_dump` instead of LOCAL_URL. That also
+# keeps pg_dump's version matched to the server's.
 [ -f "$CONFIG" ] || { echo "FATAL: config not found: $CONFIG (see docs/production-runbook.md 'Backups')"; exit 1; }
 # shellcheck source=/dev/null
 . "$CONFIG"
 
 LOCAL_URL="${LOCAL_URL:-postgres://postgres:postgres@127.0.0.1:54322/postgres}"
+DUMP_CONTAINER="${DUMP_CONTAINER:-}"
+DUMP_USER="${DUMP_USER:-postgres}"
+DUMP_DB="${DUMP_DB:-postgres}"
 KEEP="${KEEP:-30}"
 SSH_KEY="${SSH_KEY:-$HOME/.ssh/fcos-backup}"
 MIN_BYTES="${MIN_BYTES:-1024}"   # abort if the encrypted dump is smaller than this
@@ -45,7 +53,8 @@ MIN_BYTES="${MIN_BYTES:-1024}"   # abort if the encrypted dump is smaller than t
 : "${AGE_RECIPIENT:?FATAL: AGE_RECIPIENT not set in $CONFIG}"
 
 # --- Preflight (fail loud + early if a tool or path is missing) -------------
-for bin in pg_dump gzip age git; do
+if [ -n "$DUMP_CONTAINER" ]; then DUMPER=docker; else DUMPER=pg_dump; fi
+for bin in "$DUMPER" gzip age git; do
   command -v "$bin" >/dev/null 2>&1 || { echo "FATAL: '$bin' not found in PATH"; exit 1; }
 done
 [ -d "$BACKUP_REPO_DIR/.git" ] || { echo "FATAL: $BACKUP_REPO_DIR is not a git clone (run the one-time setup)"; exit 1; }
@@ -64,8 +73,17 @@ if [ "$MODE" = "--push-only" ]; then
   SIZE=0
 else
   echo "==> [1/4] Dump + gzip + encrypt -> $(basename "$OUT")"
-  # pipefail makes a failed pg_dump abort the whole pipe (no half-written blob committed).
-  pg_dump "$LOCAL_URL" --no-owner --no-privileges | gzip -9 | age -r "$AGE_RECIPIENT" > "$OUT"
+  # pipefail makes a failed pg_dump fail the whole pipe; delete the half-written blob so
+  # the next run's `git add -A` can't commit it.
+  if [ -n "$DUMP_CONTAINER" ]; then
+    docker exec "$DUMP_CONTAINER" pg_dump -U "$DUMP_USER" -d "$DUMP_DB" --no-owner --no-privileges
+  else
+    pg_dump "$LOCAL_URL" --no-owner --no-privileges
+  fi | gzip -9 | age -r "$AGE_RECIPIENT" > "$OUT" || {
+    echo "FATAL: dump failed — removed partial $(basename "$OUT")"
+    rm -f "$OUT"
+    exit 1
+  }
 
   echo "==> [2/4] Sanity gate (>= ${MIN_BYTES} bytes)"
   SIZE=$(wc -c < "$OUT")
