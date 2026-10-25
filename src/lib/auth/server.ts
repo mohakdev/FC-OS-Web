@@ -46,6 +46,13 @@ export const auth = betterAuth({
   // Apex + www both served at :3005; Better Auth otherwise trusts only baseURL.
   trustedOrigins: ["https://fc-os.tech", "https://www.fc-os.tech"],
   database: drizzleAdapter(db, { provider: "pg", schema: authSchema }),
+  // Validate the session from a signed cookie instead of querying the `session`
+  // table on every request; falls back to the DB once it expires. Only session
+  // validity is cached — approval status and grants are still read live in
+  // `getAuthState()`, so authorization changes apply immediately.
+  session: {
+    cookieCache: { enabled: true, maxAge: 5 * 60 },
+  },
   advanced: {
     // UUID ids so Better Auth's `user.id` matches the uuid `profiles.auth_user_id`.
     database: { generateId: "uuid" },
