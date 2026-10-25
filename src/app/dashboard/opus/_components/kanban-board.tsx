@@ -48,6 +48,7 @@ import {
 } from "@/lib/opus/format";
 import { usePersistedView } from "@/lib/opus/use-persisted-view";
 import { relativeTime, useTaskDrafts } from "@/lib/opus/use-task-drafts";
+import { cn } from "@/lib/utils";
 import {
   addSubtaskAction,
   createTaskAction,
@@ -67,6 +68,12 @@ import type {
 } from "./types";
 
 type Columns = Record<string, string[]>;
+
+// Radix ScrollArea wraps its content in `display: table`, which swallows `h-full`.
+// Forcing the wrapper back to a full-height block lets columns fill the board and
+// scroll on their own.
+const fillViewport =
+  "[&>[data-slot=scroll-area-viewport]>div]:block! [&>[data-slot=scroll-area-viewport]>div]:h-full";
 
 function buildColumns(statusIds: string[], tasks: BoardTask[]): Columns {
   const cols: Columns = {};
@@ -137,8 +144,8 @@ function Column({
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: statusId });
   return (
-    <div className="flex w-80 shrink-0 flex-col">
-      <div className="mb-2 flex items-center gap-2 px-1">
+    <div className="flex h-full min-h-0 w-80 shrink-0 flex-col">
+      <div className="mb-2 flex shrink-0 items-center gap-2 px-1">
         <StatusIcon color={color} fraction={fraction} />
         <span className="text-sm font-semibold">{name}</span>
         <span className="rounded-full bg-muted px-1.5 text-xs text-muted-foreground">
@@ -146,30 +153,35 @@ function Column({
         </span>
       </div>
       <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
+        {/* The drop target spans the full column height; cards scroll inside it. */}
         <div
           ref={setNodeRef}
-          className={`flex min-h-24 flex-1 flex-col gap-2 rounded-lg border border-dashed p-2 transition-colors ${
+          className={`flex min-h-24 flex-1 flex-col rounded-lg border border-dashed transition-colors ${
             isOver ? "border-primary/50 bg-accent/40" : "border-transparent"
           }`}
         >
-          {taskIds.map((id) => {
-            const task = taskMap.get(id);
-            if (!task) return null;
-            return (
-              <SortableCard
-                key={id}
-                task={task}
-                meta={meta}
-                statusName={name}
-                onOpen={() => onOpen(id)}
-              />
-            );
-          })}
-          {taskIds.length === 0 && (
-            <p className="px-1 py-4 text-center text-xs text-muted-foreground">
-              No tasks
-            </p>
-          )}
+          <ScrollArea className={cn("min-h-0 flex-1", fillViewport)}>
+            <div className="flex flex-col gap-2 p-2">
+              {taskIds.map((id) => {
+                const task = taskMap.get(id);
+                if (!task) return null;
+                return (
+                  <SortableCard
+                    key={id}
+                    task={task}
+                    meta={meta}
+                    statusName={name}
+                    onOpen={() => onOpen(id)}
+                  />
+                );
+              })}
+              {taskIds.length === 0 && (
+                <p className="px-1 py-4 text-center text-xs text-muted-foreground">
+                  No tasks
+                </p>
+              )}
+            </div>
+          </ScrollArea>
         </div>
       </SortableContext>
     </div>
@@ -427,7 +439,7 @@ export function KanbanBoard({
       </div>
 
       {view === "board" ? (
-        <ScrollArea className="min-h-0 min-w-0 flex-1">
+        <ScrollArea className={cn("min-h-0 min-w-0 flex-1", fillViewport)}>
           <DndContext
             sensors={sensors}
             collisionDetection={closestCorners}
@@ -435,7 +447,7 @@ export function KanbanBoard({
             onDragOver={handleDragOver}
             onDragEnd={handleDragEnd}
           >
-            <div className="flex gap-2 pb-3">
+            <div className="flex h-full w-max gap-2 pb-3">
               {meta.statuses.map((s) => (
                 <Column
                   key={s.id}
