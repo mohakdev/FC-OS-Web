@@ -1,12 +1,11 @@
 # Keeps the Tailscale Funnel actually reachable from the public internet (see
 # scripts/fcos-funnel-guard.sh for the why). System unit — it needs root to bounce
-# tailscaled and pm2-opdhaker.
+# tailscaled and the caddy shim.
 #
-# Install: sudo cp scripts/fcos-funnel-guard.sh /usr/local/sbin/
-#          sudo chmod +x /usr/local/sbin/fcos-funnel-guard.sh
-#          sudo cp scripts/systemd/fcos-funnel-guard.{service,timer} /etc/systemd/system/
+# Install: sudo install -m 755 scripts/fcos-funnel-guard.sh /usr/local/sbin/
+#          sudo install -m 644 scripts/systemd/fcos-funnel-guard.{service,timer} /etc/systemd/system/
 #          sudo systemctl daemon-reload
-#          sudo systemctl enable --now fcos-funnel-guard.timer fcos-funnel-guard.service
+#          sudo systemctl enable --now fcos-funnel-guard.timer
 [Unit]
 Description=FC OS: verify and repair the Tailscale Funnel ingress
 # The campus captive portal must be through before any of this means anything — that

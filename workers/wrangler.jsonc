@@ -1,5 +1,6 @@
 {
-  // Cloudflare Worker that proxies fc-os.tech -> Tailscale Funnel -> box :3005.
+  // Cloudflare Worker that proxies fc-os.tech -> Tailscale Funnel -> box Caddy shim
+  // (:18080) -> Coolify Traefik.
   // See docs/SELF_HOSTING.md. Deploy:  npx wrangler deploy -c workers/wrangler.jsonc
   //
   // Note: the `fc-os.tech` Custom Domain is attached to this Worker in the Cloudflare

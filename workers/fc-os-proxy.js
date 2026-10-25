@@ -1,7 +1,11 @@
-// Cloudflare Worker: proxy fc-os.tech -> Tailscale Funnel -> box fc-os-local (:3005).
+// Cloudflare Worker: proxy fc-os.tech -> Tailscale Funnel -> box Caddy shim (:18080)
+// -> Coolify Traefik (:80) -> app container.
 //
 // The Worker's own fetch() sends the correct SNI (claw.tail3b56f7.ts.net), which
-// the Funnel requires - a plain CNAME cannot do this.
+// the Funnel requires - a plain CNAME cannot do this. Because of that, every request
+// reaches the box with `Host: claw.tail3b56f7.ts.net`; the real public host rides in
+// `X-Orig-Host` and the Caddy shim (scripts/caddy/Caddyfile) restores it so Traefik
+// can route many <app>.fc-os.tech hosts through the one Funnel.
 //
 // It also caches immutable static assets (/_next/static, images, fonts) at the
 // Cloudflare edge, so only HTML documents and API routes actually round-trip to
@@ -31,6 +35,9 @@ export default {
     // Tell the app what the public host really is (canonical URLs, cookies).
     headers.set("X-Forwarded-Host", inUrl.hostname);
     headers.set("X-Forwarded-Proto", "https");
+    // Survives the Funnel hop (which clobbers Host/X-Forwarded-Host); the box shim
+    // turns it back into Host for Traefik routing.
+    headers.set("X-Orig-Host", inUrl.hostname);
     // Give the origin a trustworthy client IP for rate limiting. `CF-Connecting-IP`
     // is set by Cloudflare at the edge (a client cannot forge it); overwrite any
     // client-supplied `X-Forwarded-For` with it so a spoofed header can't poison

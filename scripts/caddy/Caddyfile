@@ -1,0 +1,24 @@
+# FC OS host shim: Tailscale Funnel -> here -> Coolify Traefik.
+#
+# Funnel only accepts SNI claw.tail3b56f7.ts.net, so every request arrives with
+# that Host. The Cloudflare Worker (workers/fc-os-proxy.js) stamps the real public
+# host in X-Orig-Host; this restores it so Traefik can route by domain and Next's
+# Server Action CSRF check sees a matching X-Forwarded-Host. Port 18080 because
+# Traefik's dashboard holds 8080.
+#
+# Install: sudo install -m 644 scripts/caddy/Caddyfile /etc/caddy/Caddyfile
+#          sudo caddy validate --config /etc/caddy/Caddyfile
+#          sudo systemctl enable --now caddy
+{
+	admin off
+	auto_https off
+}
+
+http://:18080 {
+	bind 127.0.0.1
+	reverse_proxy 127.0.0.1:80 {
+		header_up Host {http.request.header.X-Orig-Host}
+		header_up X-Forwarded-Host {http.request.header.X-Orig-Host}
+		header_up X-Forwarded-Proto https
+	}
+}

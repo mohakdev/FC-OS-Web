@@ -13,7 +13,8 @@
 set -uo pipefail
 
 FUNNEL_HOST="claw.tail3b56f7.ts.net"
-APP_URL="http://localhost:3005"
+APP_URL="http://127.0.0.1:18080"   # Caddy shim in front of Coolify Traefik
+APP_HOST="fc-os.tech"              # sent as X-Orig-Host; without it Traefik answers 503
 PUBLIC_URL="https://fc-os.tech/"
 STATE_DIR="/var/lib/fcos-funnel-guard"
 RESTART_STAMP="$STATE_DIR/last-tailscaled-restart"
@@ -52,7 +53,7 @@ have_internet() {
 #
 # Two dead ends this deliberately avoids:
 #   * `curl https://claw.tail3b56f7.ts.net/` on the box is a false green — MagicDNS
-#     resolves it to the node's own tailnet IP (100.65.21.64), so it never touches
+#     resolves it to the node's own tailnet IP (100.117.43.58), so it never touches
 #     Tailscale's ingress and answers 200 during a total outage.
 #   * Pinning the public ingress IP with --resolve fixes that from an outside machine, but
 #     from the node itself the connection never completes (measured: 000 while the funnel
@@ -132,10 +133,11 @@ if ! have_internet; then
   log "uplink restored via portal login"
 fi
 
-# The app itself. The funnel only proxies :3005, so a dead app looks like a dead site.
-if ! curl -sf --max-time 5 -o /dev/null "$APP_URL"; then
-  log "app on ${APP_URL} not responding; restarting pm2-opdhaker"
-  systemctl restart pm2-opdhaker
+# The local chain the funnel proxies to: Caddy shim -> Traefik -> app container. A dead
+# shim looks like a dead site; restart it. (The container itself is Coolify's to restart.)
+if ! curl -sf --max-time 5 -o /dev/null -H "X-Orig-Host: ${APP_HOST}" "$APP_URL"; then
+  log "app via ${APP_URL} (X-Orig-Host: ${APP_HOST}) not responding; restarting caddy"
+  systemctl restart caddy
   sleep 10
 fi
 
