@@ -15,6 +15,7 @@ Live deployment on box **`claw`** (Ubuntu 26.04, Coolify 4.5). `ssh aio` →
 | Funnel guard | `/usr/local/sbin/fcos-funnel-guard.sh` + `fcos-funnel-guard.timer` (root) |
 | Backups | `scripts/backup-to-github.sh` + user timers `fcos-backup{,-push}.timer` |
 | Ops checkout | `~/fc-os-web` (scripts/units only, not served) |
+| Prod DB access (Mac) | `bun run db:push:prod / db:sql:prod / db:seed:prod / db:studio:prod / db:psql:prod`; see `pushing-migrations.md` |
 
 ## Box-level settings (not in Coolify)
 
@@ -63,5 +64,4 @@ can't be revoked through the UI (`src/lib/auth/catalog.ts`). See `docs/architect
 ## Known gaps
 
 - Single box on dorm Wi-Fi and mains power; the only offsite copy is the GitHub backup.
-- `scripts/drizzle-studio-prod.sh` still targets the old `:54322` DB. It needs a tunnel to the Coolify DB.
 - Failback design: `future-architecture.md`.

@@ -10,7 +10,11 @@
     "lint": "biome check",
     "format": "biome format --write",
     "seed": "tsx src/database/seed.ts",
-    "db:studio:prod": "./scripts/drizzle-studio-prod.sh"
+    "db:studio:prod": "./scripts/prod-db.sh studio",
+    "db:push:prod": "./scripts/prod-db.sh push",
+    "db:sql:prod": "./scripts/prod-db.sh sql",
+    "db:seed:prod": "./scripts/prod-db.sh seed",
+    "db:psql:prod": "./scripts/prod-db.sh psql"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
