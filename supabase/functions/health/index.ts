@@ -8,9 +8,9 @@
 //
 // Reachable on the box at http://127.0.0.1:54321/functions/v1/health (loopback + tailnet
 // only — fcos-firewall.sh drops 54320:54330 on wlan0/eno1). Not exposed on fc-os.tech.
-Deno.serve(() =>
-  new Response(
-    JSON.stringify({ ok: true, ts: new Date().toISOString() }),
-    { headers: { "content-type": "application/json" } },
-  )
+Deno.serve(
+  () =>
+    new Response(JSON.stringify({ ok: true, ts: new Date().toISOString() }), {
+      headers: { "content-type": "application/json" },
+    }),
 );

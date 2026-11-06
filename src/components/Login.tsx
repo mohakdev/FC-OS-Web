@@ -58,10 +58,12 @@ const Login = () => {
 
     setLoading(true);
     try {
-      const { error: otpError } = await authClient.emailOtp.sendVerificationOtp({
-        email: normalizedEmail,
-        type: "sign-in",
-      });
+      const { error: otpError } = await authClient.emailOtp.sendVerificationOtp(
+        {
+          email: normalizedEmail,
+          type: "sign-in",
+        },
+      );
       if (otpError) {
         setError(otpError.message ?? "Could not send the login code.");
         return;
@@ -83,10 +85,12 @@ const Login = () => {
     if (resending || resendCooldown > 0) return;
     setResending(true);
     try {
-      const { error: otpError } = await authClient.emailOtp.sendVerificationOtp({
-        email,
-        type: "sign-in",
-      });
+      const { error: otpError } = await authClient.emailOtp.sendVerificationOtp(
+        {
+          email,
+          type: "sign-in",
+        },
+      );
       if (otpError) {
         toast.error(otpError.message ?? "Could not send a new code.");
         return;
@@ -96,7 +100,9 @@ const Login = () => {
       setResendCooldown(30);
       toast.success("New code sent — check your inbox for the latest one.");
     } catch {
-      toast.error("Could not reach the server. Check your connection and retry.");
+      toast.error(
+        "Could not reach the server. Check your connection and retry.",
+      );
     } finally {
       setResending(false);
     }
