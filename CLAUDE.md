@@ -56,10 +56,10 @@ map, surprising cross-doc links), `graph.html` (interactive).
   newer Next than your training data (e.g. `middleware.ts` is now `proxy.ts`).
 - **Self-hosting (this branch)**: Coolify on box `claw`. `docs/production-runbook.md` — stack,
   box-level settings, backups, health checklist.
-  **Public exposure** (Tailscale Funnel + Cloudflare Worker `fc-os-proxy` + static edge
-  caching, since the dorm network blocks cloudflared): `docs/SELF_HOSTING.md` /
-  `workers/fc-os-proxy.js` (+ Caddy host shim `scripts/caddy/Caddyfile`). Failback design:
-  `docs/future-architecture.md`.
+  **Public exposure** (since 2026-11-06): `fc-os.tech` → Cloudflare Tunnel `claw`, its edge traffic
+  carried by WARP (Zero Trust split tunnel; the dorm blocks cloudflared directly) + `fcos-tunnel-guard`.
+  The old Worker `fc-os-proxy` + Tailscale Funnel path is parked as rollback. `docs/SELF_HOSTING.md`,
+  `docs/production-runbook.md`. Failback design: `docs/future-architecture.md`.
 
 ## Architecture
 

@@ -1,0 +1,22 @@
+# Keeps fc-os.tech's Cloudflare Tunnel path serving (see scripts/fcos-tunnel-guard.sh for
+# the why). System unit: it needs root to restart warp-svc and fix /etc/hosts.
+#
+# Install: sudo install -m 755 scripts/fcos-tunnel-guard.sh /usr/local/sbin/
+#          sudo install -m 644 scripts/systemd/fcos-tunnel-guard.{service,timer} /etc/systemd/system/
+#          sudo systemctl daemon-reload
+#          sudo systemctl enable --now fcos-tunnel-guard.timer
+[Unit]
+Description=FC OS: verify and repair the Cloudflare Tunnel path (WARP + cloudflared)
+After=network-online.target warp-svc.service srmist-portal-refresh.service
+Wants=network-online.target warp-svc.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/fcos-tunnel-guard.sh
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+TimeoutStartSec=600
+Nice=5
+
+[Install]
+WantedBy=multi-user.target

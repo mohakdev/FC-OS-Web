@@ -1,0 +1,20 @@
+# Cloudflare Tunnel "claw" for fc-os.tech. User unit (lingering is on). Its edge traffic
+# goes through WARP (Zero Trust Include split tunnel); see scripts/fcos-tunnel-guard.sh.
+# Token: ~/.config/cloudflared/claw.token (mode 600; from the tunnel's API/dashboard).
+# --protocol http2: QUIC fails inside ZT MASQUE-over-TCP. --no-autoupdate: the update
+# host's SNI is reset by campus DPI.
+#
+# Install: cp scripts/systemd/cloudflared-claw.service ~/.config/systemd/user/
+#          systemctl --user daemon-reload && systemctl --user enable --now cloudflared-claw
+[Unit]
+Description=Cloudflare Tunnel "claw" (edge traffic carried by WARP Zero Trust split tunnel)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=%h/bin/cloudflared tunnel --no-autoupdate --protocol http2 --edge-ip-version 4 --metrics 127.0.0.1:20241 run --token-file %h/.config/cloudflared/claw.token
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

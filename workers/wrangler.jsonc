@@ -1,4 +1,8 @@
 {
+  // PARKED since 2026-11-06: fc-os.tech now goes straight to Cloudflare Tunnel "claw"
+  // (docs/SELF_HOSTING.md). This Worker stays deployed with NO domains attached as the
+  // rollback path; see docs/production-runbook.md "Roll back to Worker + Funnel".
+  //
   // Cloudflare Worker that proxies fc-os.tech -> Tailscale Funnel -> box Caddy shim
   // (:18080) -> Coolify Traefik.
   // See docs/SELF_HOSTING.md. Deploy:  npx wrangler deploy -c workers/wrangler.jsonc
