@@ -85,8 +85,6 @@ export const dashboardSidebarConfig: DashboardSidebarConfig = {
           icon: PersonStanding,
           href: "/dashboard/attendance-tracker",
           description: "Attendance and participation tracking",
-          badge: "Coming Soon",
-          disabled: true,
         },
         {
           id: "fc-tv-cms",
