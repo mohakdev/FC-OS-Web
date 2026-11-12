@@ -1,10 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { rolesEnum } from "@/database/schemas/roles";
 import { requireWriteAccess } from "@/lib/auth/context";
 import { canIn } from "@/lib/auth/permissions";
-import { checkExclusiveReadOnlyRole } from "@/lib/auth/roles";
+import { ASSIGNABLE_ROLES, checkExclusiveReadOnlyRole } from "@/lib/auth/roles";
 import { notifyRealtime } from "@/lib/realtime/notify";
 import {
   getProfileDomains,
@@ -17,7 +16,8 @@ export type DecisionResult = { ok: true } | { error: string };
 
 export type RoleAssignment = { role: string; domain: string };
 
-const VALID_ROLES = new Set<string>(rolesEnum.enumValues);
+// Superadmin is DB-only, so it is not in this set.
+const VALID_ROLES = ASSIGNABLE_ROLES;
 
 export async function decideMember(
   profileId: string,

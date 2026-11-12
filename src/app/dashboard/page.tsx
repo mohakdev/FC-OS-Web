@@ -1,6 +1,5 @@
-import { BadgeCheck, BellIcon, CheckCircle2Icon, InfoIcon } from "lucide-react";
+import { BadgeCheck } from "lucide-react";
 import { redirect } from "next/navigation";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { getAccessContext } from "@/lib/auth/context";
 import { type DomainId, domainIcons } from "@/lib/opus/format";
@@ -14,7 +13,10 @@ export default async function DashboardPage() {
   const profile = await getProfile(ctx.userId);
   if (!profile) redirect("/dashboard");
 
-  const { firstName, lastName, domains, roles } = profile;
+  const { firstName, lastName } = profile;
+  // While "viewing as" another role, show that role's badges, not your own.
+  const domains = ctx.viewAs ? ctx.domainIds : profile.domains;
+  const roles = ctx.viewAs ? ctx.roleIds : profile.roles;
 
   return (
     <section className="flex flex-1 flex-col gap-6 items-start my-4 md:my-30">

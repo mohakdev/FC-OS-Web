@@ -11,9 +11,9 @@ import { cache } from "react";
 import { db } from "@/database/db";
 import { profiles } from "@/database/schemas/profiles";
 import { rolePermissions } from "@/database/schemas/role_permissions";
-import { roles } from "@/database/schemas/roles";
+import { roles, rolesEnum } from "@/database/schemas/roles";
 import { userRoles } from "@/database/schemas/user_roles";
-import type { PermissionId } from "./catalog";
+import { type PermissionId, SUPERADMIN_ROLE } from "./catalog";
 import { MUST_HAVE_A_HOLDER } from "./lockout";
 
 /** `roleId -> scope`, straight from the `roles` table. Per-request cached. */
@@ -60,6 +60,30 @@ export async function globalGrantsForRoles(
 
 /** `db`, or the handle passed into a `db.transaction` callback. */
 type Executor = typeof db | Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * Roles the app may assign. Superadmin is DB-only, so every role-writing
+ * Server Action validates against this, not `rolesEnum.enumValues` — hiding it
+ * from the dropdowns alone would still accept a crafted POST.
+ */
+export const ASSIGNABLE_ROLES: ReadonlySet<string> = new Set(
+  rolesEnum.enumValues.filter((r) => r !== SUPERADMIN_ROLE),
+);
+
+/** Does this profile hold the (DB-only) superadmin role? */
+export async function holdsSuperadmin(
+  profileId: string,
+  exec: Executor = db,
+): Promise<boolean> {
+  const rows = await exec
+    .select({ role: userRoles.role })
+    .from(userRoles)
+    .where(
+      and(eq(userRoles.id, profileId), eq(userRoles.role, SUPERADMIN_ROLE)),
+    )
+    .limit(1);
+  return rows.length > 0;
+}
 
 /**
  * Which of `MUST_HAVE_A_HOLDER` currently have at least one approved holder via

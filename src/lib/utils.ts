@@ -18,6 +18,7 @@ export function cn(...inputs: ClassValue[]) {
  * people's badges the moment an admin grants that to a lead.
  */
 export const leadershipRoles = new Set([
+  "superadmin",
   "president",
   "vice president",
   "human resource manager",

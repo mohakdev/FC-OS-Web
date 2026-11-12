@@ -113,6 +113,18 @@ The old `app_settings.domainLeadsCanApprove` toggle is now just a grant: it adds
 for free. The column survives as a mirror; drop it once the grid replaces the switch in the
 profile settings modal.
 
+**Superadmin + "view as"** — `superadmin` is the platform maintainer's role: global scope,
+holds every permission, whole grid row protected (`PROTECTED_GRANTS`), and **DB-only** —
+`ASSIGNABLE_ROLES` excludes it from every role-writing action, `setMemberRoles` carries an
+existing superadmin row across its delete/reinsert, and `setMemberDecision` refuses to reject
+it. Assign with SQL on the box. It holds `platform.view_as`, which shows a floating toolbar
+(`src/components/view-as-toolbar.tsx`) to switch into one role (+ domain) for up to 1 hour via
+the `fcos_view_as` cookie (`src/lib/auth/view-as.ts`). While switched, `getAuthState` returns
+that role's `roleIds`/`domainIds`/`grants`, with grants always **intersected** with the user's
+real grants (`intersectGrants`) so a switch can only narrow. `realGrants` (switcher only) and
+`viewAs` ride along on `AccessContext`. Writes are real; each gated write logs a
+`view_as_write` JSON line to the server log.
+
 ### Data layer
 
 - Schemas: one table per file in `src/database/schemas/`, re-exported from `index.ts`;

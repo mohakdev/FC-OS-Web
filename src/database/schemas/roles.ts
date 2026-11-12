@@ -11,6 +11,9 @@ export const rolesEnum = pgEnum("role_label", [
   // Read-only roles: full view access across FC OS, no mutations.
   "advisor",
   "alumni",
+  // Platform maintainer: holds every permission (locked in the grid) and can
+  // "view as" any role. Assigned in the DB only — never from the app.
+  "superadmin",
 ]);
 export const scopeEnum = pgEnum("scope", ["domain", "global"]);
 

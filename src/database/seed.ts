@@ -5,7 +5,11 @@
 //   bun run seed   (see package.json — runs this via tsx)
 import "dotenv/config";
 
-import { PERMISSIONS, type PermissionId } from "@/lib/auth/catalog";
+import {
+  PERMISSION_IDS,
+  PERMISSIONS,
+  type PermissionId,
+} from "@/lib/auth/catalog";
 import { db } from "./db";
 import { appSettings } from "./schemas/app_settings";
 import { domains } from "./schemas/domains";
@@ -35,6 +39,8 @@ const ROLES = [
   // Read-only roles, not tied to a domain.
   { id: "advisor", scope: "global" },
   { id: "alumni", scope: "global" },
+  // Platform maintainer. Assigned in the DB only.
+  { id: "superadmin", scope: "global" },
 ] as const;
 
 // The role→permission grid. Reproduces the behaviour of the hardcoded role sets
@@ -81,6 +87,9 @@ const BASE_GRANTS: Record<RoleId, PermissionId[]> = {
   // today the `isReadOnly` deny-override blocks them.
   advisor: [],
   alumni: [],
+  // Every permission, including any added later (re-run the seed). The whole
+  // row is protected in `catalog.ts`, so the grid shows it locked.
+  superadmin: [...PERMISSION_IDS],
 };
 
 const DEFAULT_STATUSES = [

@@ -58,6 +58,12 @@ export const PERMISSIONS = [
     description:
       "Mark bug reports fixed, reopen them, and delete them. Filing a report needs no permission — every approved member can.",
   },
+  {
+    id: "platform.view_as",
+    label: "Switch role (view as)",
+    description:
+      "Temporarily see and act as another role (+ domain) via the dev toolbar. Switched grants are always intersected with your real ones, so it can only narrow, never escalate.",
+  },
 ] as const;
 
 export type PermissionId = (typeof PERMISSIONS)[number]["id"];
@@ -72,12 +78,21 @@ export const PERMISSION_IDS: readonly PermissionId[] = PERMISSIONS.map(
  * grid. Deliberately a code constant, not a DB row: a DB-backed "protected"
  * flag would itself be editable through the very UI it is meant to protect.
  */
+/**
+ * The platform maintainer role. Holds every permission (all protected below)
+ * and is assigned in the DB only: no role-writing action accepts it, and
+ * `setMemberRoles` / `setMemberDecision` refuse to strip it.
+ */
+export const SUPERADMIN_ROLE = "superadmin";
+
 export const PROTECTED_GRANTS: ReadonlyArray<{
   roleId: string;
   permissionId: PermissionId;
 }> = [
   { roleId: "president", permissionId: "role.manage" },
   { roleId: "president", permissionId: "member.manage" },
+  // Superadmin's whole row is locked: every permission, irrevocable.
+  ...PERMISSIONS.map((p) => ({ roleId: SUPERADMIN_ROLE, permissionId: p.id })),
 ];
 
 export const isProtectedGrant = (roleId: string, permissionId: string) =>

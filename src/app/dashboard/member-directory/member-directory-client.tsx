@@ -74,6 +74,9 @@ const ROLES = [
   "human resource manager",
   "vice president",
   "president",
+  // Highest rank, so `highestRole` shows it. Display/filter only: it is never
+  // offered in the role editor (DB-only).
+  "superadmin",
 ] as const;
 
 function GenderBadge({ gender }: { gender: "male" | "female" | null }) {

@@ -10,14 +10,21 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { ViewAsToolbar } from "@/components/view-as-toolbar";
+import { rolesEnum } from "@/database/schemas/roles";
+import { SUPERADMIN_ROLE } from "@/lib/auth/catalog";
 import { getAuthState } from "@/lib/auth/context";
-import { allPermissions } from "@/lib/auth/permissions";
+import { allPermissions, can } from "@/lib/auth/permissions";
+import { getRoleScopes } from "@/lib/auth/roles";
 import { manageableDomains } from "@/lib/opus/permissions";
 
 export const metadata: Metadata = {
   title: "FC OS • Dashboard",
   description: "The Founders Operating System",
 };
+
+type RoleId = (typeof rolesEnum.enumValues)[number];
+const ROLE_ORDER: readonly RoleId[] = rolesEnum.enumValues;
 
 // Reads the session, so this subtree must render dynamically.
 export const dynamic = "force-dynamic";
@@ -38,6 +45,18 @@ export default async function RootLayout({
   // sidebar — never built nav nodes (Lucide icons are functions). The sidebar
   // assembles the dynamic sub-nav from these ids client-side.
   const navData = { manageableDomains: manageableDomains(state.ctx) };
+
+  // "View as" toolbar: gated on the REAL grants, so it stays while switched.
+  const viewAsRoles = can(state.ctx.realGrants, "platform.view_as")
+    ? [...(await getRoleScopes())]
+        .filter(([id]) => id !== SUPERADMIN_ROLE)
+        .map(([id, scope]) => ({ id, scope }))
+        .sort(
+          (a, b) =>
+            ROLE_ORDER.indexOf(a.id as RoleId) -
+            ROLE_ORDER.indexOf(b.id as RoleId),
+        )
+    : null;
 
   return (
     <TooltipProvider>
@@ -64,6 +83,9 @@ export default async function RootLayout({
             </div>
           </SidebarInset>
         </SidebarProvider>
+        {viewAsRoles ? (
+          <ViewAsToolbar roles={viewAsRoles} viewAs={state.ctx.viewAs} />
+        ) : null}
       </RealtimeProvider>
     </TooltipProvider>
   );

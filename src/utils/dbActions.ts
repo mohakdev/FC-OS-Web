@@ -9,8 +9,13 @@ import { type NewProfile, profiles } from "../database/schemas/profiles";
 import { rolePermissions } from "../database/schemas/role_permissions";
 import type { rolesEnum } from "../database/schemas/roles";
 import { userRoles } from "../database/schemas/user_roles";
+import { SUPERADMIN_ROLE } from "../lib/auth/catalog";
 import { lockoutMessage, missingAfter } from "../lib/auth/lockout";
-import { getRoleScopes, heldMustHavePermissions } from "../lib/auth/roles";
+import {
+  getRoleScopes,
+  heldMustHavePermissions,
+  holdsSuperadmin,
+} from "../lib/auth/roles";
 import type { OnboardingInput } from "../lib/validation/onboarding";
 
 export type RoleLabel = (typeof rolesEnum.enumValues)[number];
@@ -339,6 +344,8 @@ export const setMemberRoles = async (
   const rows: NewUserRole[] = [];
 
   for (const { role, domain } of assignments) {
+    // Superadmin is DB-only: never written from here (it is preserved below).
+    if (role === SUPERADMIN_ROLE) continue;
     if (scopes.get(role) === "global") {
       if (seenGlobal.has(role)) continue;
       seenGlobal.add(role);
@@ -354,6 +361,13 @@ export const setMemberRoles = async (
 
   await db.transaction(async (tx) => {
     const before = await heldMustHavePermissions(tx);
+
+    // This replaces ALL of the user's rows, so carry a superadmin row across —
+    // otherwise editing the maintainer's domains in the directory would
+    // silently strip it.
+    if (await holdsSuperadmin(profileId, tx)) {
+      rows.push({ id: profileId, role: SUPERADMIN_ROLE, domain: null });
+    }
 
     await tx.delete(userRoles).where(eq(userRoles.id, profileId));
     if (rows.length > 0) await tx.insert(userRoles).values(rows);
@@ -377,6 +391,11 @@ export const setMemberDecision = async (
   status: "approved" | "rejected",
 ) => {
   await db.transaction(async (tx) => {
+    // The maintainer can't be rejected or removed from the app (DB-only role).
+    if (status === "rejected" && (await holdsSuperadmin(profileId, tx))) {
+      throw new Error("The superadmin can't be removed from the app.");
+    }
+
     const before = await heldMustHavePermissions(tx);
 
     await tx

@@ -112,3 +112,30 @@ export const domainsWith = (
   g.global.includes(permission)
     ? [...allDomains]
     : allDomains.filter((d) => g.byDomain[d]?.includes(permission));
+
+/**
+ * `a ∩ b`: a permission survives only where BOTH sets hold it.
+ *
+ * The safety rule behind "view as": switched grants are always intersected with
+ * the switcher's real grants, so switching can only ever narrow what someone may
+ * do, never widen it — even if `platform.view_as` is later ticked on a role that
+ * holds less than the role it switches into.
+ */
+export function intersectGrants(a: Grants, b: Grants): Grants {
+  const global = a.global.filter((p) => can(b, p));
+  const byDomain: Partial<Record<DomainId, string[]>> = {};
+  const domains = new Set([
+    ...(Object.keys(a.byDomain) as DomainId[]),
+    // A global grant in `a` also applies in every domain where `b` holds it
+    // only domain-scoped; keep those as domain grants.
+    ...(a.global.length ? (Object.keys(b.byDomain) as DomainId[]) : []),
+  ]);
+  for (const d of domains) {
+    const candidates = new Set([...(a.byDomain[d] ?? []), ...a.global]);
+    const kept = [...candidates].filter(
+      (p) => !global.includes(p) && canIn(b, p, d),
+    );
+    if (kept.length) byDomain[d] = kept;
+  }
+  return { global, byDomain };
+}

@@ -2,12 +2,14 @@
 
 import { revalidatePath } from "next/cache";
 import { domainsEnum } from "@/database/schemas/domains";
-import { rolesEnum } from "@/database/schemas/roles";
+import { SUPERADMIN_ROLE } from "@/lib/auth/catalog";
 import { requireGlobalWriteAccess } from "@/lib/auth/context";
 import {
+  ASSIGNABLE_ROLES,
   checkExclusiveReadOnlyRole,
   getRoleScopes,
   globalGrantsForRoles,
+  holdsSuperadmin,
 } from "@/lib/auth/roles";
 import { notifyRealtime } from "@/lib/realtime/notify";
 import {
@@ -20,7 +22,8 @@ export type ManageResult = { ok: true } | { error: string };
 
 export type RoleAssignment = { role: string; domain: string };
 
-const VALID_ROLES = new Set<string>(rolesEnum.enumValues);
+// Superadmin is DB-only, so it is not in this set.
+const VALID_ROLES = ASSIGNABLE_ROLES;
 const VALID_DOMAINS = new Set<string>(domainsEnum.enumValues);
 
 /**
@@ -59,7 +62,10 @@ export async function updateMember(
   // gated on `can()`, so keeping `member.manage` through a domain role would
   // still lock them out of it.
   if (profileId === ctx.userId) {
-    const next = await globalGrantsForRoles(assignments.map((a) => a.role));
+    const nextRoles = assignments.map((a) => a.role);
+    // `setMemberRoles` carries a superadmin row across, so count it here too.
+    if (await holdsSuperadmin(profileId)) nextRoles.push(SUPERADMIN_ROLE);
+    const next = await globalGrantsForRoles(nextRoles);
     if (!next.has("member.manage"))
       return { error: "You can't remove your own member-management role." };
   }

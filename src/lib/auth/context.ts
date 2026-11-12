@@ -14,9 +14,12 @@ import {
   EMPTY_GRANTS,
   type GrantRow,
   type Grants,
+  intersectGrants,
   resolveGrants,
 } from "./permissions";
+import { getRoleScopes } from "./roles";
 import { auth } from "./server";
+import { parseViewAs, readViewAsCookie, type ViewAs } from "./view-as";
 
 export type ProfileStatus = "pending_approval" | "approved" | "rejected";
 
@@ -36,6 +39,18 @@ export type AccessContext = {
    * Check these with `can` / `canIn` / `canAny`; never branch on `roleIds`.
    */
   grants: Grants;
+  /**
+   * The user's OWN grants, ignoring any "view as" switch. Only the switcher
+   * reads this (to show the toolbar and to start a switch); everything else
+   * must use `grants`. Equal to `grants` when not switched.
+   */
+  realGrants: Grants;
+  /**
+   * Active "view as" switch, or null. While set, `roleIds` / `domainIds` /
+   * `grants` describe the switched role (intersected with `realGrants`), so
+   * every page and action behaves exactly as for that role.
+   */
+  viewAs: ViewAs | null;
 };
 
 export type AuthState =
@@ -107,20 +122,79 @@ export const getAuthState = cache(async (): Promise<AuthState> => {
       domain: r.domain,
     }));
 
+  const realGrants = grantRows.length ? resolveGrants(grantRows) : EMPTY_GRANTS;
+
+  const base = {
+    userId: profile.id,
+    authUserId: user.id,
+    firstName: profile.firstName,
+    lastName: profile.lastName,
+    status: profile.status,
+    realGrants,
+  };
+
+  const viewAs = can(realGrants, "platform.view_as")
+    ? parseViewAs(await readViewAsCookie(), await getRoleScopes())
+    : null;
+
+  if (!viewAs) {
+    return {
+      kind: "active",
+      ctx: { ...base, roleIds, domainIds, grants: realGrants, viewAs: null },
+    };
+  }
+
+  // Switched: resolve the target role's grid row as if the user held exactly
+  // that one `user_roles` row, then intersect with the real grants so a switch
+  // can only ever narrow.
+  const scope = (await getRoleScopes()).get(viewAs.role) ?? "domain";
+  const switchedRows = await db
+    .select({ permissionId: rolePermissions.permissionId })
+    .from(rolePermissions)
+    // biome-ignore lint/suspicious/noExplicitAny: enum-typed column, role validated by parseViewAs
+    .where(eq(rolePermissions.roleId, viewAs.role as any));
+  const switched = resolveGrants(
+    switchedRows.map((r) => ({
+      permissionId: r.permissionId,
+      scope,
+      domain: viewAs.domain,
+    })),
+  );
+
   return {
     kind: "active",
     ctx: {
-      userId: profile.id,
-      authUserId: user.id,
-      firstName: profile.firstName,
-      lastName: profile.lastName,
-      status: profile.status,
-      roleIds,
-      domainIds,
-      grants: grantRows.length ? resolveGrants(grantRows) : EMPTY_GRANTS,
+      ...base,
+      roleIds: [viewAs.role],
+      domainIds: viewAs.domain ? [viewAs.domain] : [],
+      grants: intersectGrants(switched, realGrants),
+      viewAs,
     },
   };
 });
+
+/**
+ * Writes made while switched go to the server log (Coolify container logs), so
+ * an odd change on prod can be traced back to a "view as" test.
+ */
+function logViewAsWrite(
+  ctx: AccessContext,
+  permission: PermissionId,
+  allowed: boolean,
+) {
+  if (!ctx.viewAs) return;
+  console.info(
+    JSON.stringify({
+      event: "view_as_write",
+      userId: ctx.userId,
+      role: ctx.viewAs.role,
+      domain: ctx.viewAs.domain,
+      permission,
+      allowed,
+      at: new Date().toISOString(),
+    }),
+  );
+}
 
 /** Returns the access context only when a profile exists (any status), else null. */
 export async function getAccessContext(): Promise<AccessContext | null> {
@@ -152,9 +226,9 @@ export async function requireWriteAccess(
   if (ctx.status !== "approved") {
     return { error: "Your account is not approved." };
   }
-  if (!canAny(ctx.grants, permission)) {
-    return { error: "You are not allowed to do that." };
-  }
+  const allowed = canAny(ctx.grants, permission);
+  logViewAsWrite(ctx, permission, allowed);
+  if (!allowed) return { error: "You are not allowed to do that." };
   return ctx;
 }
 
@@ -179,8 +253,8 @@ export async function requireGlobalWriteAccess(
   if (ctx.status !== "approved") {
     return { error: "Your account is not approved." };
   }
-  if (!can(ctx.grants, permission)) {
-    return { error: "You are not allowed to do that." };
-  }
+  const allowed = can(ctx.grants, permission);
+  logViewAsWrite(ctx, permission, allowed);
+  if (!allowed) return { error: "You are not allowed to do that." };
   return ctx;
 }
