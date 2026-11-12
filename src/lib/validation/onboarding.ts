@@ -3,6 +3,17 @@ import { z } from "zod";
 // Official org email domain. Sign-up and onboarding both require it.
 export const SRMIST_EMAIL_SUFFIX = "@srmist.edu.in";
 
+// Official netID: 2 letters + 4 digits (e.g. od7270). The email is netID + suffix.
+export const NETID_REGEX = /^[a-z]{2}\d{4}$/;
+
+// Progressive pattern for the slot input: accepts any valid *prefix* while
+// typing (input-otp tests the partial value on every keystroke and paste).
+export const NETID_PARTIAL_PATTERN = "^(?:[a-zA-Z]{1,2}|[a-zA-Z]{2}\\d{1,4})$";
+
+export const netIdSchema = z.string().trim().toLowerCase().regex(NETID_REGEX, {
+  message: "NetID is 2 letters + 4 digits, e.g. od7270",
+});
+
 // Normalize (trim + lowercase) BEFORE validating, so a trailing space or
 // capitals don't reject an otherwise-valid address and send/verify always agree
 // on the same string. `safeParse(...).data` is the normalized email to use.

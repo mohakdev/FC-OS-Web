@@ -1,13 +1,17 @@
 "use client";
 
+import { REGEXP_ONLY_DIGITS } from "input-otp";
 import { useRouter } from "next/navigation";
 import { type FormEvent, useEffect, useState } from "react";
-
-import { REGEXP_ONLY_DIGITS } from "input-otp";
 import { toast } from "sonner";
 
 import { authClient } from "@/lib/auth/client";
-import { SRMIST_EMAIL_SUFFIX, srmistEmail } from "@/lib/validation/onboarding";
+import {
+  NETID_PARTIAL_PATTERN,
+  netIdSchema,
+  SRMIST_EMAIL_SUFFIX,
+  srmistEmail,
+} from "@/lib/validation/onboarding";
 import { Button } from "./ui/button";
 import {
   Card,
@@ -17,7 +21,6 @@ import {
   CardHeader,
   CardTitle,
 } from "./ui/card";
-import { Input } from "./ui/input";
 import {
   InputOTP,
   InputOTPGroup,
@@ -29,6 +32,7 @@ import { Label } from "./ui/label";
 const Login = () => {
   const router = useRouter();
   const [step, setStep] = useState<"email" | "otp">("email");
+  const [netId, setNetId] = useState("");
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -47,9 +51,17 @@ const Login = () => {
     event.preventDefault();
     setError(null);
 
+    const parsedNetId = netIdSchema.safeParse(netId);
+    if (!parsedNetId.success) {
+      setError(parsedNetId.error.issues[0]?.message ?? "Enter a valid NetID.");
+      return;
+    }
+
     // `.data` is normalized (trimmed + lowercased) — use it everywhere so the
     // send and the later verify agree on the exact same address.
-    const parsed = srmistEmail.safeParse(email);
+    const parsed = srmistEmail.safeParse(
+      `${parsedNetId.data}${SRMIST_EMAIL_SUFFIX}`,
+    );
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? "Enter a valid email.");
       return;
@@ -98,7 +110,7 @@ const Login = () => {
       setOtp("");
       setError(null);
       setResendCooldown(30);
-      toast.success("New code sent — check your inbox for the latest one.");
+      toast.success("New code sent; check your inbox for the latest one.");
     } catch {
       toast.error(
         "Could not reach the server. Check your connection and retry.",
@@ -125,7 +137,7 @@ const Login = () => {
       if (signInError) {
         setError(
           signInError.code === "INVALID_OTP"
-            ? "That code expired or was replaced by a newer one — tap Resend code."
+            ? "That code expired or was replaced by a newer one; tap Resend code."
             : (signInError.message ?? "Invalid or expired code."),
         );
         return;
@@ -150,7 +162,7 @@ const Login = () => {
         <CardTitle className="text-center font-serif text-3xl text-primary">
           Log In
         </CardTitle>
-        <CardDescription className="text-center font-sans break-words">
+        <CardDescription className="text-center font-sans wrap-break-word">
           {step === "email"
             ? "We'll email you a one-time code."
             : `Enter the code sent to ${email}.`}
@@ -161,24 +173,45 @@ const Login = () => {
         <form onSubmit={sendCode}>
           <CardContent className="my-4">
             <div className="grid gap-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                autoComplete="email"
-                placeholder="name@srmist.edu.in"
-                required
+              <Label htmlFor="netid" className="justify-center">
+                NetID
+              </Label>
+              <InputOTP
+                id="netid"
+                name="netid"
+                maxLength={6}
+                // Letters in slots 1–2, digits in 3–6 (e.g. od7270).
+                pattern={NETID_PARTIAL_PATTERN}
+                inputMode="text"
+                autoCapitalize="off"
+                autoComplete="username"
+                autoFocus
                 disabled={loading}
                 aria-invalid={error ? true : undefined}
                 aria-describedby={error ? "email-error" : undefined}
-                value={email}
-                onChange={(event) => {
-                  setEmail(event.target.value);
+                containerClassName="justify-center gap-2"
+                value={netId}
+                onChange={(value) => {
+                  setNetId(value.toLowerCase());
                   if (error) setError(null);
                 }}
-                className="font-sans"
-              />
+                // Pasting the full email fills the slots with just the netID.
+                pasteTransformer={(pasted) =>
+                  pasted.trim().toLowerCase().replace(SRMIST_EMAIL_SUFFIX, "")
+                }
+              >
+                <InputOTPGroup>
+                  <InputOTPSlot index={0} />
+                  <InputOTPSlot index={1} />
+                  <InputOTPSlot index={2} />
+                  <InputOTPSlot index={3} />
+                  <InputOTPSlot index={4} />
+                  <InputOTPSlot index={5} />
+                </InputOTPGroup>
+                {/*<span className="font-sans text-sm text-muted-foreground">
+                  {SRMIST_EMAIL_SUFFIX}
+                </span>*/}
+              </InputOTP>
             </div>
             {error ? (
               <p
@@ -194,17 +227,17 @@ const Login = () => {
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? "Sending…" : "Send code"}
             </Button>
-            <p className="text-center text-sm text-muted-foreground">
+            {/*<p className="text-center text-sm text-muted-foreground">
               New here? Enter your {SRMIST_EMAIL_SUFFIX} email above and we'll
               email you a code — no separate sign-up needed.
-            </p>
+            </p>*/}
           </CardFooter>
         </form>
       ) : (
         <form onSubmit={verifyCode}>
           <CardContent className="my-4">
             <div className="grid gap-2">
-              <Label htmlFor="otp">One-time code</Label>
+              {/*<Label htmlFor="otp"></Label>*/}
               <InputOTP
                 id="otp"
                 maxLength={6}
@@ -264,13 +297,13 @@ const Login = () => {
                   ? `Resend in ${resendCooldown}s`
                   : "Resend code"}
             </Button>
-            <p className="text-center text-sm text-muted-foreground">
+            {/*<p className="text-center text-sm text-muted-foreground">
               Use the most recent code — older codes stop working.
-            </p>
+            </p>*/}
             <Button
               type="button"
               variant="ghost"
-              className="w-full"
+              className="w-full text-xs text-muted-foreground"
               disabled={loading}
               onClick={() => {
                 setStep("email");
@@ -279,7 +312,7 @@ const Login = () => {
                 setResendCooldown(0);
               }}
             >
-              Use a different email
+              Use a different NetID
             </Button>
           </CardFooter>
         </form>
