@@ -59,6 +59,18 @@ export const PERMISSIONS = [
       "Mark bug reports fixed, reopen them, and delete them. Filing a report needs no permission — every approved member can.",
   },
   {
+    id: "canon.event.manage",
+    label: "Manage Canon events",
+    description:
+      "Create, edit, publish and delete any Canon event page, assign its SPOCs, and manage event categories. Only counts when held org-wide.",
+  },
+  {
+    id: "canon.event.edit.own",
+    label: "Edit own Canon events",
+    description:
+      "Edit and publish a Canon event page you are a SPOC on. Cannot change its SPOCs or delete it.",
+  },
+  {
     id: "platform.view_as",
     label: "Switch role (view as)",
     description:

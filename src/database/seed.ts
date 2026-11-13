@@ -12,6 +12,7 @@ import {
 } from "@/lib/auth/catalog";
 import { db } from "./db";
 import { appSettings } from "./schemas/app_settings";
+import { canonCategories } from "./schemas/canon_categories";
 import { domains } from "./schemas/domains";
 import { opusPriorities } from "./schemas/opus_priorities";
 import { opusStatuses } from "./schemas/opus_statuses";
@@ -63,21 +64,27 @@ const OPUS_MANAGER: PermissionId[] = [
   "opus.task.status.own",
 ];
 
+// Every approved non-read-only member may edit the Canon events they are a
+// SPOC on. Being a SPOC is the relationship; this is the capability behind it.
+const CANON_SPOC: PermissionId[] = ["canon.event.edit.own"];
+
 const APPROVER: PermissionId[] = [
   "member.approve",
   "member.manage",
   "member.remove",
   "settings.manage",
   ...OPUS_MANAGER,
+  ...CANON_SPOC,
+  "canon.event.manage",
 ];
 
 type RoleId = (typeof rolesEnum.enumValues)[number];
 
 const BASE_GRANTS: Record<RoleId, PermissionId[]> = {
-  member: ["opus.task.status.own"],
-  "associate lead": OPUS_MANAGER,
-  "co-lead": OPUS_MANAGER,
-  lead: OPUS_MANAGER,
+  member: ["opus.task.status.own", ...CANON_SPOC],
+  "associate lead": [...OPUS_MANAGER, ...CANON_SPOC],
+  "co-lead": [...OPUS_MANAGER, ...CANON_SPOC],
+  lead: [...OPUS_MANAGER, ...CANON_SPOC],
   "human resource manager": APPROVER,
   "vice president": [...APPROVER, "role.manage", "bug.manage"],
   president: [...APPROVER, "role.manage", "bug.manage"],
@@ -108,6 +115,13 @@ const DEFAULT_PRIORITIES = [
   { name: "Medium", position: 1, ringFull: false },
   { name: "High", position: 2, ringFull: false },
   { name: "Urgent", position: 3, ringFull: true },
+] as const;
+
+const DEFAULT_CANON_CATEGORIES = [
+  "Ideathon",
+  "Hackathon",
+  "Startupathon",
+  "InterClub",
 ] as const;
 
 async function seed() {
@@ -190,8 +204,15 @@ async function seed() {
       .onConflictDoNothing();
   }
 
+  await db
+    .insert(canonCategories)
+    .values(
+      DEFAULT_CANON_CATEGORIES.map((name, position) => ({ name, position })),
+    )
+    .onConflictDoNothing();
+
   console.log(
-    "Seeded domains + roles + permissions + settings + opus statuses + priorities.",
+    "Seeded domains + roles + permissions + settings + opus statuses + priorities + canon categories.",
   );
 }
 
