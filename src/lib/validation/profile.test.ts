@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { linkMeta } from "../profile/links";
 import {
   formatPhone,
+  linkLimit,
   normalizeIndianPhone,
   normalizeLink,
   profileDetailsSchema,
@@ -82,12 +83,14 @@ describe("profileDetailsSchema", () => {
     expect(r.quote).toBeNull();
     expect(r.links).toEqual(["https://github.com/a"]);
   });
-  test("rejects more than 3 links", () => {
+  test("schema allows up to 6 links (the extended ceiling)", () => {
+    const six = ["a.com", "b.com", "c.com", "d.com", "e.com", "f.com"];
     expect(
-      profileDetailsSchema.safeParse({
-        ...base,
-        links: ["a.com", "b.com", "c.com", "d.com"],
-      }).success,
+      profileDetailsSchema.safeParse({ ...base, links: six }).success,
+    ).toBe(true);
+    expect(
+      profileDetailsSchema.safeParse({ ...base, links: [...six, "g.com"] })
+        .success,
     ).toBe(false);
   });
   test("rejects a 151-char quote", () => {
@@ -102,4 +105,9 @@ describe("profileDetailsSchema", () => {
         .success,
     ).toBe(false);
   });
+});
+
+test("linkLimit: 3 by default, 6 with profile.links.extended", () => {
+  expect(linkLimit(false)).toBe(3);
+  expect(linkLimit(true)).toBe(6);
 });

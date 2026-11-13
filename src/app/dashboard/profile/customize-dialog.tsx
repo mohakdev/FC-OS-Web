@@ -39,7 +39,6 @@ import {
   AVATAR_INPUT_TYPES,
   AVATAR_MAX_BYTES,
   AVATAR_SIZE_PX,
-  LINKS_MAX,
   normalizeLink,
   QUOTE_MAX,
 } from "@/lib/validation/profile";
@@ -92,8 +91,11 @@ async function cropToBlob(src: string, area: Area): Promise<Blob> {
 
 export default function CustomizeDialog({
   profile,
+  maxLinks,
 }: {
   profile: CustomizeProfile;
+  /** 3, or 6 with `profile.links.extended` — the server re-checks. */
+  maxLinks: number;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -108,7 +110,11 @@ export default function CustomizeDialog({
       <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
         {/* Remount on every open so the form starts from the saved profile. */}
         {open ? (
-          <CustomizeForm profile={profile} onDone={() => setOpen(false)} />
+          <CustomizeForm
+            profile={profile}
+            maxLinks={maxLinks}
+            onDone={() => setOpen(false)}
+          />
         ) : null}
       </DialogContent>
     </Dialog>
@@ -117,9 +123,11 @@ export default function CustomizeDialog({
 
 function CustomizeForm({
   profile,
+  maxLinks,
   onDone,
 }: {
   profile: CustomizeProfile;
+  maxLinks: number;
   onDone: () => void;
 }) {
   const [phone, setPhone] = useState(localDigits(profile.phone));
@@ -260,7 +268,7 @@ function CustomizeForm({
           />
         </div>
 
-        <LinksEditor links={links} onChange={setLinks} />
+        <LinksEditor links={links} max={maxLinks} onChange={setLinks} />
 
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
       </div>
@@ -437,9 +445,11 @@ function AvatarCropper({
 
 function LinksEditor({
   links,
+  max,
   onChange,
 }: {
   links: string[];
+  max: number;
   onChange: (links: string[]) => void;
 }) {
   const set = (i: number, value: string) =>
@@ -490,7 +500,7 @@ function LinksEditor({
           </div>
         );
       })}
-      {links.length < LINKS_MAX ? (
+      {links.length < max ? (
         <Button
           type="button"
           variant="ghost"

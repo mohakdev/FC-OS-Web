@@ -5,11 +5,13 @@ import { revalidatePath } from "next/cache";
 import sharp from "sharp";
 
 import { type AccessContext, getAccessContext } from "@/lib/auth/context";
+import { canAny } from "@/lib/auth/permissions";
 import { notifyRealtime } from "@/lib/realtime/notify";
 import { deleteObject, putObject } from "@/lib/storage/s3";
 import {
   AVATAR_MAX_BYTES,
   AVATAR_SIZE_PX,
+  linkLimit,
   type ProfileDetailsInput,
   profileDetailsSchema,
 } from "@/lib/validation/profile";
@@ -58,6 +60,12 @@ export async function updateProfileDetails(
     return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
   }
   const { phone, dateOfBirth, quote, links } = parsed.data;
+
+  // Personal data, no domain to narrow to — held anywhere counts.
+  const maxLinks = linkLimit(canAny(ctx.grants, "profile.links.extended"));
+  if (links.length > maxLinks) {
+    return { error: `You can add up to ${maxLinks} links.` };
+  }
 
   if (await isPhoneTaken(phone, ctx.userId)) {
     return { error: "That phone number is already used by another member." };

@@ -41,7 +41,7 @@ multi-domain membership = one row per domain). Domains: `technical`, `creatives`
 `operations`, `outreach`.
 
 The catalog is `src/lib/auth/catalog.ts` (`member.approve|manage|remove`, `role.manage`,
-`opus.*`, `bug.manage`, `canon.*`, `platform.view_as`). `settings.manage` was removed
+`opus.*`, `bug.manage`, `canon.*`, `profile.links.extended`, `platform.view_as`). `settings.manage` was removed
 2026-11-14 along with the profile-page Settings dialog. `seed.ts` seeds the grid. Only add a permission when the feature
 it gates exists — a checkbox that does nothing destroys trust in the grid.
 
@@ -141,7 +141,11 @@ real grants (`intersectGrants`) so a switch can only narrow. `realGrants` (switc
 - `/dashboard/profile` → **Customize** dialog (`profile/customize-dialog.tsx`): own profile
   only, any approved member, no permission. Edits `profiles.phone` (Indian 10-digit,
   stored `+91XXXXXXXXXX`, unique) + `date_of_birth`, and `profile_details` (quote ≤150,
-  ≤3 links, avatar key). Rules: `src/lib/validation/profile.ts`.
+  ≤3 links (≤6 with `profile.links.extended`, superadmin by default; checked in the
+  action via `linkLimit()`), avatar key). Rules: `src/lib/validation/profile.ts`.
+- Superadmins get `src/components/superadmin-badge.tsx` (green, shadcn `shimmer`) in the
+  directory role badges and the sidebar user menu. Display only; it reads the real role
+  (`holdsSuperadmin`), so it doesn't change under "view as".
 - Links store only the URL; icon + label come from the hostname at render time
   (`src/lib/profile/links.ts`). Unknown hosts (personal sites) → globe + bare hostname.
 - Avatars: client crops (react-easy-crop) → server re-encodes with sharp to 512px webp →

@@ -15,7 +15,7 @@ import { rolesEnum } from "@/database/schemas/roles";
 import { SUPERADMIN_ROLE } from "@/lib/auth/catalog";
 import { getAuthState } from "@/lib/auth/context";
 import { allPermissions, can, canAny } from "@/lib/auth/permissions";
-import { getRoleScopes } from "@/lib/auth/roles";
+import { getRoleScopes, holdsSuperadmin } from "@/lib/auth/roles";
 import { isDomainId } from "@/lib/opus/format";
 import { manageableDomains } from "@/lib/opus/permissions";
 import { getPendingMembersFor } from "@/utils/dbActions";
@@ -50,6 +50,9 @@ export default async function RootLayout({
     name: `${state.ctx.firstName} ${state.ctx.lastName}`.trim() || "Member",
     email: state.ctx.email,
     domainIds: state.ctx.domainIds.filter(isDomainId),
+    // Badge only (identity, not authority): read the REAL role, so it stays
+    // put while "view as" narrows ctx.roleIds to the switched role.
+    isSuperadmin: await holdsSuperadmin(state.ctx.userId),
   };
   // Sidebar badge. Re-runs on every realtime `router.refresh()`, so it stays live.
   const pendingRequests = canAny(state.ctx.grants, "member.approve")

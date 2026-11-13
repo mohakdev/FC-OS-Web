@@ -2,9 +2,10 @@ import { redirect } from "next/navigation";
 import CopyButton from "@/components/copy-button";
 import { ProfileAvatar } from "@/components/profile-avatar";
 import { getAccessContext } from "@/lib/auth/context";
+import { canAny } from "@/lib/auth/permissions";
 import { formatIsoDob } from "@/lib/profile/dates";
 import { linkMeta } from "@/lib/profile/links";
-import { formatPhone } from "@/lib/validation/profile";
+import { formatPhone, linkLimit } from "@/lib/validation/profile";
 import { getProfile } from "@/utils/dbActions";
 import CustomizeDialog from "./customize-dialog";
 
@@ -30,6 +31,7 @@ export default async function ProfilePage() {
           <h1 className="font-serif text-7xl text-primary">Your Profile</h1>
         </div>
         <CustomizeDialog
+          maxLinks={linkLimit(canAny(ctx.grants, "profile.links.extended"))}
           profile={{
             id: profile.id,
             firstName: profile.firstName,
@@ -63,8 +65,8 @@ export default async function ProfilePage() {
               <CopyButton value={profile.email} />
             </span>
             {profile.quote ? (
-              <p className="max-w-prose pt-1 text-muted-foreground italic">
-                “{profile.quote}”
+              <p className="max-w-prose pt-1 text-muted-foreground font-serif">
+                “<span className="italic">{profile.quote}</span>”
               </p>
             ) : null}
           </div>

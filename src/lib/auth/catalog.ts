@@ -66,6 +66,11 @@ export const PERMISSIONS = [
       "Edit and publish a Canon event page you are a SPOC on. Cannot change its SPOCs or delete it.",
   },
   {
+    id: "profile.links.extended",
+    label: "Extra profile links",
+    description: "Add up to 6 links to your profile instead of 3.",
+  },
+  {
     id: "platform.view_as",
     label: "Switch role (view as)",
     description:

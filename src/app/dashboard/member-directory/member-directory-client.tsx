@@ -14,6 +14,7 @@ import {
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { ProfileAvatar } from "@/components/profile-avatar";
+import { SuperadminBadge } from "@/components/superadmin-badge";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -119,6 +120,12 @@ function highestRole(
     if (idx > best) best = idx;
   }
   return best >= 0 ? capitalize(ROLES[best]) : "Club member";
+}
+
+/** A `formatRoles` entry as a badge; the superadmin one gets its own look. */
+function RoleBadge({ label }: { label: string }) {
+  if (label === "Superadmin") return <SuperadminBadge />;
+  return <Badge variant="outline">{label}</Badge>;
 }
 
 function formatRoles(
@@ -642,9 +649,7 @@ export default function MemberDirectoryClient({
                 <TableCell>
                   <div className="flex flex-wrap gap-1">
                     {formatRoles(member.rolePairs).map((r) => (
-                      <Badge key={r} variant="outline">
-                        {r}
-                      </Badge>
+                      <RoleBadge key={r} label={r} />
                     ))}
                   </div>
                 </TableCell>
@@ -741,9 +746,7 @@ export default function MemberDirectoryClient({
                     </span>
                     <div className="flex flex-wrap gap-1">
                       {formatRoles(selected.rolePairs).map((r) => (
-                        <Badge key={r} variant="outline">
-                          {r}
-                        </Badge>
+                        <RoleBadge key={r} label={r} />
                       ))}
                     </div>
                   </div>

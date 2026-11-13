@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
+import { SuperadminBadge } from "@/components/superadmin-badge";
 import { ThemeMenuGroups } from "@/components/theme/theme-selector";
 import {
   AlertDialog,
@@ -46,6 +47,7 @@ export type NavUserData = {
   name: string;
   email: string;
   domainIds: DomainId[];
+  isSuperadmin: boolean;
 };
 
 function getInitials(name: string) {
@@ -84,7 +86,7 @@ function DomainSummary({ domainIds }: { domainIds: DomainId[] }) {
   );
 }
 
-export function NavUser({ name, email, domainIds }: NavUserData) {
+export function NavUser({ name, email, domainIds, isSuperadmin }: NavUserData) {
   const { isMobile } = useSidebar();
   const router = useRouter();
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -124,7 +126,12 @@ export function NavUser({ name, email, domainIds }: NavUserData) {
                   <span className="truncate font-serif text-base leading-tight">
                     {name}
                   </span>
-                  <DomainSummary domainIds={domainIds} />
+                  {/* The 16rem row fits one badge; the menu lists domains. */}
+                  {isSuperadmin ? (
+                    <SuperadminBadge className="self-start" />
+                  ) : (
+                    <DomainSummary domainIds={domainIds} />
+                  )}
                 </span>
                 <ChevronsUpDown className="ml-auto text-muted-foreground" />
               </DropdownMenuTrigger>
@@ -149,8 +156,9 @@ export function NavUser({ name, email, domainIds }: NavUserData) {
                     </span>
                   </div>
                 </div>
-                {domainIds.length > 0 ? (
+                {isSuperadmin || domainIds.length > 0 ? (
                   <div className="flex flex-wrap gap-1 px-1.5 pb-1.5">
+                    {isSuperadmin ? <SuperadminBadge /> : null}
                     {domainIds.map((domain) => (
                       <DomainBadge key={domain} domain={domain} />
                     ))}

@@ -4,6 +4,12 @@ import { z } from "zod";
 
 export const QUOTE_MAX = 150;
 export const LINKS_MAX = 3;
+// Holders of `profile.links.extended` (superadmin by default) get more.
+export const LINKS_MAX_EXTENDED = 6;
+
+/** The caller's link cap. The schema enforces only the hard ceiling (6). */
+export const linkLimit = (extended: boolean) =>
+  extended ? LINKS_MAX_EXTENDED : LINKS_MAX;
 
 // Avatar upload limits. The client crops to a square and sends a webp; the
 // server re-encodes with sharp regardless, so these bound the raw upload.
@@ -85,7 +91,10 @@ export const profileDetailsSchema = z.object({
     .pipe(
       z
         .array(linkSchema)
-        .max(LINKS_MAX, `You can add up to ${LINKS_MAX} links`),
+        .max(
+          LINKS_MAX_EXTENDED,
+          `You can add up to ${LINKS_MAX_EXTENDED} links`,
+        ),
     )
     .transform((links) => [...new Set(links)]),
 });
