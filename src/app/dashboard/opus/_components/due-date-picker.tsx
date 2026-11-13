@@ -8,6 +8,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { formatDueDate } from "@/lib/opus/format";
 import { cn } from "@/lib/utils";
 
 export function DueDatePicker({
@@ -37,13 +38,7 @@ export function DueDatePicker({
             )}
           >
             <CalendarIcon className="size-4" strokeWidth={2.5} />
-            {value
-              ? value.toLocaleDateString(undefined, {
-                  year: "numeric",
-                  month: "short",
-                  day: "numeric",
-                })
-              : "No due date"}
+            {value ? formatDueDate(value) : "No due date"}
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-auto p-0" align="start">

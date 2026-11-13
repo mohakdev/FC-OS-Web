@@ -8,6 +8,7 @@ import {
   Palette,
   Settings,
 } from "lucide-react";
+import { CANON_TZ } from "@/lib/canon/format";
 import { DOMAIN_IDS } from "@/lib/validation/onboarding";
 
 export { DOMAIN_IDS };
@@ -82,8 +83,24 @@ export const isOverdue = (dueDate: Date | null, statusName?: string) => {
   return dueDate.getTime() < Date.now();
 };
 
-export const formatDueDate = (dueDate: Date) =>
-  dueDate.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+// Locale AND timezone are pinned so the server (Node, often UTC) and the
+// browser render the same string — `toLocaleDateString(undefined, …)` used the
+// runtime's locale ("Aug 19" vs "19 Aug") and broke hydration.
+const dueDateFormatter = new Intl.DateTimeFormat("en-GB", {
+  timeZone: CANON_TZ,
+  day: "2-digit",
+  month: "short",
+  year: "numeric",
+});
+
+/** `Date` → `"19 Aug 2026"` in IST (always a 3-letter month). */
+export const formatDueDate = (dueDate: Date) => {
+  const parts = Object.fromEntries(
+    dueDateFormatter.formatToParts(dueDate).map((p) => [p.type, p.value]),
+  );
+  // en-GB's short September is "Sept" in current ICU; keep `DD Mon YYYY`.
+  return `${parts.day} ${String(parts.month).slice(0, 3)} ${parts.year}`;
+};
 
 /** A readable text color for a hex label background. */
 export const labelTextColor = (hex: string): string => {
