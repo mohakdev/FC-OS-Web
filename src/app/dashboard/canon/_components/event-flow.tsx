@@ -4,7 +4,6 @@ import { ArrowDown, ArrowUp, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Trace,
   TraceCollapsible,
@@ -17,6 +16,7 @@ import {
 import { type Draft, move, newPhase } from "./draft";
 import { ghost } from "./ghost";
 import { Markdown } from "./markdown";
+import { MarkdownEditor } from "./markdown-editor";
 
 function PhaseNumber({ n }: { n: number }) {
   return (
@@ -79,7 +79,9 @@ export function EventFlow({
   return (
     <Trace className="gap-4">
       {phases.map((p, i) => (
-        <div key={p.key} className="group flex flex-col gap-2">
+        // Trace pins rows that hold a TraceLine to w-fit; the editor needs the
+        // full column so boxes don't grow as you type.
+        <div key={p.key} className="group flex w-full! flex-col gap-2">
           <TraceLine className="w-full text-base text-foreground">
             <PhaseNumber n={i + 1} />
             <Input
@@ -126,12 +128,11 @@ export function EventFlow({
           <div className="ml-[calc(--spacing(2)-1px)] border-l pl-4">
             <Card size="sm" className="shadow-sm">
               <CardContent>
-                <Textarea
-                  aria-label={`Phase ${i + 1} details`}
-                  placeholder="How this phase works. Markdown works: **bold**, - lists, [links](https://…)"
+                <MarkdownEditor
+                  label={`Phase ${i + 1} details`}
+                  placeholder="How this phase works…"
                   value={p.body}
-                  onChange={(e) => update(i, { body: e.target.value })}
-                  className={ghost("min-h-16 resize-none text-sm md:text-sm")}
+                  onChange={(body) => update(i, { body })}
                 />
               </CardContent>
             </Card>

@@ -14,7 +14,19 @@ export function Markdown({ children }: { children: string }) {
           h1: (p) => <h3 className="text-base font-semibold" {...p} />,
           h2: (p) => <h3 className="text-base font-semibold" {...p} />,
           h3: (p) => <h4 className="font-semibold" {...p} />,
-          ul: (p) => <ul className="ml-5 list-disc space-y-1" {...p} />,
+          // remark-gfm marks checklists with `contains-task-list`; those get
+          // checkboxes instead of bullets.
+          ul: ({ className, ...p }) => (
+            <ul
+              className={
+                className?.includes("contains-task-list")
+                  ? "ml-1 list-none space-y-1"
+                  : "ml-5 list-disc space-y-1"
+              }
+              {...p}
+            />
+          ),
+          input: (p) => <input className="mr-2 align-middle" {...p} />,
           ol: (p) => <ol className="ml-5 list-decimal space-y-1" {...p} />,
           a: (p) => (
             <a
