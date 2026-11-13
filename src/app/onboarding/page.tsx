@@ -15,7 +15,7 @@ export default async function OnboardingPage() {
 
   return (
     <main className="flex min-h-svh items-center justify-center bg-background p-4">
-      <ThemeSelector variant="floating" />
+      <ThemeSelector />
       <OnboardingForm />
     </main>
   );

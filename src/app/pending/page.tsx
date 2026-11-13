@@ -23,7 +23,7 @@ export default async function PendingPage() {
 
   return (
     <main className="flex min-h-svh items-center justify-center bg-background p-4">
-      <ThemeSelector variant="floating" />
+      <ThemeSelector />
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle className="font-serif text-3xl text-primary">

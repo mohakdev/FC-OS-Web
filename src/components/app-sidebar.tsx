@@ -1,12 +1,11 @@
 "use client";
 
-import { ChevronRight, Loader2, LogOut } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { type ComponentProps, useState } from "react";
-import { toast } from "sonner";
-import { ThemeSelector } from "@/components/theme/theme-selector";
+import { usePathname } from "next/navigation";
+import type { ComponentProps } from "react";
+import { NavUser, type NavUserData } from "@/components/nav-user";
 import {
   Collapsible,
   CollapsibleContent,
@@ -30,7 +29,6 @@ import {
   SidebarRail,
   SidebarSeparator,
 } from "@/components/ui/sidebar";
-import { authClient } from "@/lib/auth/client";
 import {
   type DashboardNavItem,
   dashboardSidebarConfig,
@@ -38,7 +36,6 @@ import {
 import type { DomainId } from "@/lib/opus/format";
 import { buildOpusNavChildren } from "@/lib/opus/nav";
 import { cn } from "@/lib/utils";
-import { Avatar, AvatarBadge, AvatarFallback } from "./ui/avatar";
 
 // True when the current route matches the item or any of its descendants —
 // used to decide whether a collapsible group starts expanded.
@@ -185,17 +182,9 @@ function SidebarNavItem({
   );
 }
 
-function getInitials(name: string) {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "FC";
-  const first = parts[0]?.[0] ?? "";
-  const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? "") : "";
-  return (first + last).toUpperCase() || "FC";
-}
-
 export function AppSidebar({
   permissions = [],
-  userName = "",
+  user,
   navData,
   ...props
 }: ComponentProps<typeof Sidebar> & {
@@ -203,34 +192,18 @@ export function AppSidebar({
   // on `requiresPermission`; a domain lead granted `member.approve` sees Member
   // Requests exactly as an HRM does, with no special case.
   permissions?: string[];
-  userName?: string;
+  user: NavUserData;
   // Serializable inputs for dynamic sub-nav (icons are attached client-side
   // here, never passed across the RSC boundary).
   navData?: { manageableDomains?: DomainId[] };
 }) {
   const pathname = usePathname();
-  const router = useRouter();
-  const [loggingOut, setLoggingOut] = useState(false);
-  const displayName = userName.trim() || "Member";
-
-  const handleLogout = async () => {
-    setLoggingOut(true);
-    const { error } = await authClient.signOut();
-    if (error) {
-      setLoggingOut(false);
-      toast.error(error.message ?? "Could not log out.");
-      return;
-    }
-    router.replace("/");
-    router.refresh();
-  };
 
   // Per-product dynamic sub-nav, keyed by nav-item id. Built client-side so
   // Lucide icon components never cross the server→client boundary.
   const navChildren: Record<string, DashboardNavItem[]> = {
     opus: buildOpusNavChildren(navData?.manageableDomains ?? []),
   };
-  const initials = getInitials(userName);
 
   return (
     <Sidebar variant="inset" {...props}>
@@ -293,39 +266,8 @@ export function AppSidebar({
 
       <SidebarSeparator className="mx-auto" />
 
-      <SidebarFooter className="gap-1">
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton size="lg" asChild tooltip={displayName}>
-              <Link href="/dashboard/profile">
-                <Avatar size="lg">
-                  <AvatarFallback className="rounded-lg font-serif leading-snug">
-                    {initials}
-                  </AvatarFallback>
-                  <AvatarBadge className="bg-primary" />
-                </Avatar>
-                <span className="truncate font-serif text-2xl text-sidebar-foreground">
-                  {displayName}
-                </span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <ThemeSelector className="text-sidebar-foreground/70" />
-          </SidebarMenuItem>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              onClick={handleLogout}
-              disabled={loggingOut}
-              tooltip="Log out"
-              aria-label="Log out"
-              className="text-sidebar-foreground/70 transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:bg-destructive/10 focus-visible:text-destructive active:bg-destructive/15 active:text-destructive disabled:opacity-60"
-            >
-              {loggingOut ? <Loader2 className="animate-spin" /> : <LogOut />}
-              <span>{loggingOut ? "Logging out…" : "Log out"}</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
+      <SidebarFooter>
+        <NavUser {...user} />
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>

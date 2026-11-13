@@ -15,7 +15,7 @@ export default async function Home() {
 
   return (
     <div className="grid md:grid-cols-2 flex-1 relative">
-      <ThemeSelector variant="floating" />
+      <ThemeSelector />
       <div className="relative z-10 flex flex-col items-center justify-center p-4">
         <div className="space-y-1 flex flex-col items-center md:items-start">
           <Image src={"/FCLogo.svg"} alt="FC Logo" width={40} height={20} />

@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 export default function NotFound() {
   return (
     <div className="not-found-in flex min-h-[80vh] flex-col items-center justify-center gap-6 px-6 text-center">
-      <ThemeSelector variant="floating" />
+      <ThemeSelector />
       <NotFoundGlitch />
 
       <div className="space-y-2">

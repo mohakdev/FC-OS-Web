@@ -13,7 +13,7 @@ const HomePage = async () => {
   return (
     <main className="relative flex h-svh max-h-svh flex-1 overflow-hidden bg-background">
       <HeroBackground />
-      <ThemeSelector variant="floating" />
+      <ThemeSelector />
       <div className="relative z-10 flex w-full items-center justify-center flex-col mb-40">
         <div className="max-w-xl rounded-2xl font-serif text-9xl tracking-tight">
           FC OS

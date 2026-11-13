@@ -16,6 +16,7 @@ import { SUPERADMIN_ROLE } from "@/lib/auth/catalog";
 import { getAuthState } from "@/lib/auth/context";
 import { allPermissions, can } from "@/lib/auth/permissions";
 import { getRoleScopes } from "@/lib/auth/roles";
+import { isDomainId } from "@/lib/opus/format";
 import { manageableDomains } from "@/lib/opus/permissions";
 
 export const metadata: Metadata = {
@@ -45,6 +46,11 @@ export default async function RootLayout({
   // sidebar — never built nav nodes (Lucide icons are functions). The sidebar
   // assembles the dynamic sub-nav from these ids client-side.
   const navData = { manageableDomains: manageableDomains(state.ctx) };
+  const user = {
+    name: `${state.ctx.firstName} ${state.ctx.lastName}`.trim() || "Member",
+    email: state.ctx.email,
+    domainIds: state.ctx.domainIds.filter(isDomainId),
+  };
 
   // "View as" toolbar: gated on the REAL grants, so it stays while switched.
   const viewAsRoles = can(state.ctx.realGrants, "platform.view_as")
@@ -67,7 +73,7 @@ export default async function RootLayout({
           <AppSidebar
             collapsible={"icon"}
             permissions={allPermissions(state.ctx.grants)}
-            userName={`${state.ctx.firstName} ${state.ctx.lastName}`.trim()}
+            user={user}
             navData={navData}
           />
           <SidebarInset className="min-h-0 min-w-0 overflow-hidden">
