@@ -7,6 +7,7 @@ import {
   type LucideIcon,
   MonitorUp,
   PersonStanding,
+  ScrollText,
   ShieldCheck,
   Target,
   UserCheck,
@@ -69,6 +70,13 @@ export const dashboardSidebarConfig: DashboardSidebarConfig = {
           description: "Planning and execution workspace",
           // badge: "Exec",
           // disabled: true,
+        },
+        {
+          id: "canon",
+          label: "Canon",
+          icon: ScrollText,
+          href: "/dashboard/canon",
+          description: "The club's single source of truth for events",
         },
         {
           id: "mom",
