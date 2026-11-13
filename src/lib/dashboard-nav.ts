@@ -2,7 +2,6 @@ import {
   AudioLines,
   BookUser,
   Bug,
-  CircleUserRound,
   LayoutDashboard,
   type LucideIcon,
   MonitorUp,
@@ -14,47 +13,66 @@ import {
   Users,
 } from "lucide-react";
 
+// Second-level row inside a collapsible group (e.g. an Opus domain board).
+export type DashboardNavSubItem = {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  href: string;
+  // Only an exact pathname match marks the row active (for index routes whose
+  // href prefixes every sibling, like the Opus overview).
+  exact?: boolean;
+  // Optional secondary link revealed on hover (e.g. "Manage" gear). Its route
+  // also marks the row active.
+  action?: { href: string; label: string; icon: LucideIcon };
+};
+
 export type DashboardNavItem = {
   id: string;
   label: string;
   icon: LucideIcon;
-  description: string;
   href: string;
-  badge?: string;
+  // Hidden from the sidebar until the tool ships.
   disabled?: boolean;
   // Only users holding this permission (globally or in some domain) see the item.
   requiresPermission?: string;
-  // Nested sub-navigation, rendered as a collapsible (toggle-only) group.
-  children?: DashboardNavItem[];
-  // When the item has children, controls whether the group starts expanded.
-  defaultOpen?: boolean;
+  // Sub-navigation, rendered as a collapsible group (a flyout when collapsed).
+  // Usually injected at render time — see `AppSidebar`'s `navChildren`.
+  children?: DashboardNavSubItem[];
 };
 
 export type DashboardNavSection = {
   id: string;
-  label: string;
+  // Omitted for the unlabeled top group.
+  label?: string;
   items: DashboardNavItem[];
-};
-
-export type DashboardSidebarConfig = {
-  sections: DashboardNavSection[];
-  footerItems: DashboardNavItem[];
 };
 
 const DASHBOARD_ROOT = "/dashboard";
 
-export const dashboardSidebarConfig: DashboardSidebarConfig = {
+/**
+ * Whether `href` is the current route. Prefix matching keeps a tool highlighted
+ * on its nested pages (`/dashboard/canon/<id>` → Canon); the dashboard root and
+ * `exact` items only match themselves.
+ */
+export const isNavActive = (
+  href: string,
+  pathname: string,
+  exact = false,
+): boolean =>
+  pathname === href ||
+  (!exact && href !== DASHBOARD_ROOT && pathname.startsWith(`${href}/`));
+
+export const dashboardSidebarConfig: { sections: DashboardNavSection[] } = {
   sections: [
     {
       id: "overview",
-      label: "Overview",
       items: [
         {
           id: "dashboard",
           label: "Dashboard",
           icon: LayoutDashboard,
           href: DASHBOARD_ROOT,
-          description: "Workspace overview",
         },
       ],
     },
@@ -67,24 +85,18 @@ export const dashboardSidebarConfig: DashboardSidebarConfig = {
           label: "Opus",
           icon: Target,
           href: "/dashboard/opus",
-          description: "Planning and execution workspace",
-          // badge: "Exec",
-          // disabled: true,
         },
         {
           id: "canon",
           label: "Canon",
           icon: ScrollText,
           href: "/dashboard/canon",
-          description: "The club's single source of truth for events",
         },
         {
           id: "mom",
           label: "MoM",
           icon: AudioLines,
           href: "/dashboard/MoM",
-          description: "Meeting notes and follow-ups",
-          badge: "Coming Soon",
           disabled: true,
         },
         {
@@ -92,15 +104,13 @@ export const dashboardSidebarConfig: DashboardSidebarConfig = {
           label: "Attendance Tracker",
           icon: PersonStanding,
           href: "/dashboard/attendance-tracker",
-          description: "Attendance and participation tracking",
+          disabled: true,
         },
         {
           id: "fc-tv-cms",
           label: "FC TV CMS",
           icon: MonitorUp,
           href: "/dashboard/FC-TV-CMS",
-          description: "Content publishing and media control",
-          badge: "Coming Soon",
           disabled: true,
         },
         {
@@ -108,8 +118,6 @@ export const dashboardSidebarConfig: DashboardSidebarConfig = {
           label: "Performance Tracker",
           icon: Users,
           href: "/dashboard/performance-tracker",
-          description: "Team performance overview",
-          badge: "Coming Soon",
           disabled: true,
         },
         {
@@ -117,14 +125,12 @@ export const dashboardSidebarConfig: DashboardSidebarConfig = {
           label: "Member Directory",
           icon: BookUser,
           href: "/dashboard/member-directory",
-          description: "Browse and contact club members",
         },
         {
           id: "bug-reports",
           label: "Bug Reports",
           icon: Bug,
           href: "/dashboard/bug-reports",
-          description: "Report and track FC OS bugs",
         },
       ],
     },
@@ -137,7 +143,6 @@ export const dashboardSidebarConfig: DashboardSidebarConfig = {
           label: "Member Requests",
           icon: UserCheck,
           href: "/dashboard/member-requests",
-          description: "Approve or reject pending members",
           requiresPermission: "member.approve",
         },
         {
@@ -145,48 +150,9 @@ export const dashboardSidebarConfig: DashboardSidebarConfig = {
           label: "Roles & Permissions",
           icon: ShieldCheck,
           href: "/dashboard/settings/roles",
-          description: "Control what each role is allowed to do",
           requiresPermission: "role.manage",
         },
       ],
     },
   ],
-  footerItems: [
-    {
-      id: "profile",
-      label: "Profile",
-      icon: CircleUserRound,
-      href: "/dashboard/profile",
-      description: "Account settings",
-    },
-  ],
-} satisfies DashboardSidebarConfig;
-
-// Flatten a nav item and all of its descendants (depth-first).
-const flattenNavItem = (item: DashboardNavItem): DashboardNavItem[] => [
-  item,
-  ...(item.children?.flatMap(flattenNavItem) ?? []),
-];
-
-export const allDashboardNavItems: DashboardNavItem[] = [
-  ...dashboardSidebarConfig.sections.flatMap<DashboardNavItem>((section) =>
-    section.items.flatMap(flattenNavItem),
-  ),
-  ...dashboardSidebarConfig.footerItems.flatMap(flattenNavItem),
-];
-
-const defaultDashboardNavItem = allDashboardNavItems[0];
-
-if (!defaultDashboardNavItem) {
-  throw new Error("dashboardSidebarConfig must include at least one nav item.");
-}
-
-export const getDashboardNavItemById = (id: string) =>
-  allDashboardNavItems.find((item) => item.id === id);
-
-export const getDashboardNavItemByPathname = (pathname: string) =>
-  allDashboardNavItems.find(
-    (item) =>
-      pathname === item.href ||
-      (item.href !== DASHBOARD_ROOT && pathname.startsWith(`${item.href}/`)),
-  ) ?? defaultDashboardNavItem;
+};

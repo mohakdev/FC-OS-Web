@@ -14,10 +14,11 @@ import { ViewAsToolbar } from "@/components/view-as-toolbar";
 import { rolesEnum } from "@/database/schemas/roles";
 import { SUPERADMIN_ROLE } from "@/lib/auth/catalog";
 import { getAuthState } from "@/lib/auth/context";
-import { allPermissions, can } from "@/lib/auth/permissions";
+import { allPermissions, can, canAny } from "@/lib/auth/permissions";
 import { getRoleScopes } from "@/lib/auth/roles";
 import { isDomainId } from "@/lib/opus/format";
 import { manageableDomains } from "@/lib/opus/permissions";
+import { getPendingMembersFor } from "@/utils/dbActions";
 
 export const metadata: Metadata = {
   title: "FC OS • Dashboard",
@@ -45,11 +46,19 @@ export default async function RootLayout({
   // Only plain serializable data may cross the RSC boundary into the client
   // sidebar — never built nav nodes (Lucide icons are functions). The sidebar
   // assembles the dynamic sub-nav from these ids client-side.
-  const navData = { manageableDomains: manageableDomains(state.ctx) };
   const user = {
     name: `${state.ctx.firstName} ${state.ctx.lastName}`.trim() || "Member",
     email: state.ctx.email,
     domainIds: state.ctx.domainIds.filter(isDomainId),
+  };
+  // Sidebar badge. Re-runs on every realtime `router.refresh()`, so it stays live.
+  const pendingRequests = canAny(state.ctx.grants, "member.approve")
+    ? (await getPendingMembersFor(state.ctx.grants)).length
+    : 0;
+  const navData = {
+    manageableDomains: manageableDomains(state.ctx),
+    myDomains: user.domainIds,
+    pendingRequests,
   };
 
   // "View as" toolbar: gated on the REAL grants, so it stays while switched.

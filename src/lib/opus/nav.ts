@@ -1,6 +1,6 @@
-import { LayoutDashboard, ListChecks, Settings2 } from "lucide-react";
+import { LayoutDashboard, Settings2 } from "lucide-react";
 
-import type { DashboardNavItem } from "@/lib/dashboard-nav";
+import type { DashboardNavSubItem } from "@/lib/dashboard-nav";
 import {
   DOMAIN_IDS,
   type DomainId,
@@ -8,65 +8,48 @@ import {
   formatDomain,
 } from "@/lib/opus/format";
 
-// Build a collapsible group of per-domain links under a shared base path.
-function domainGroup(
-  id: string,
-  label: string,
-  icon: DashboardNavItem["icon"],
-  base: string,
-  domains: readonly DomainId[],
-  defaultOpen = false,
-): DashboardNavItem {
-  return {
-    id,
-    label,
-    icon,
-    href: base,
-    description: label,
-    defaultOpen,
-    children: domains.map((d) => ({
-      id: `${id}-${d}`,
-      label: formatDomain(d),
-      icon: domainIcons[d],
-      href: `${base}/${d}`,
-      description: formatDomain(d),
-    })),
-  };
-}
+export type OpusNavInput = {
+  // Domains the user may manage (server-computed via `manageableDomains`).
+  manage: DomainId[];
+  // Domains the user belongs to — listed first.
+  myDomains: DomainId[];
+};
 
-// Opus sub-navigation. `manage` is per-user (server-computed via
-// `manageableDomains`), so this can't live in the static sidebar config —
-// it is injected at render time through `AppSidebar`'s `navChildren` seam.
-export function buildOpusNavChildren(manage: DomainId[]): DashboardNavItem[] {
-  const children: DashboardNavItem[] = [
+// Opus sub-navigation: Overview + one board per domain (two levels, no deeper).
+// Per-user, so it can't live in the static sidebar config — it is injected at
+// render time through `AppSidebar`'s `navChildren` seam.
+export function buildOpusNavChildren({
+  manage,
+  myDomains,
+}: OpusNavInput): DashboardNavSubItem[] {
+  const mine = new Set(myDomains);
+  const ordered = [
+    ...DOMAIN_IDS.filter((d) => mine.has(d)),
+    ...DOMAIN_IDS.filter((d) => !mine.has(d)),
+  ];
+
+  return [
     {
       id: "opus-overview",
       label: "Overview",
       icon: LayoutDashboard,
       href: "/dashboard/opus",
-      description: "Planning and execution workspace",
+      exact: true,
     },
-    domainGroup(
-      "opus-tasks",
-      "Tasks",
-      ListChecks,
-      "/dashboard/opus/tasks",
-      DOMAIN_IDS,
-      true,
+    ...ordered.map(
+      (d): DashboardNavSubItem => ({
+        id: `opus-${d}`,
+        label: formatDomain(d),
+        icon: domainIcons[d],
+        href: `/dashboard/opus/tasks/${d}`,
+        action: manage.includes(d)
+          ? {
+              href: `/dashboard/opus/manage/${d}`,
+              label: `Manage ${formatDomain(d)}`,
+              icon: Settings2,
+            }
+          : undefined,
+      }),
     ),
   ];
-
-  if (manage.length > 0) {
-    children.push(
-      domainGroup(
-        "opus-manage",
-        "Manage",
-        Settings2,
-        "/dashboard/opus/manage",
-        manage,
-      ),
-    );
-  }
-
-  return children;
 }
