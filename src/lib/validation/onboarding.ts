@@ -3,7 +3,7 @@ import { z } from "zod";
 // Official org email domain. Sign-up and onboarding both require it.
 export const SRMIST_EMAIL_SUFFIX = "@srmist.edu.in";
 
-// Official netID: 2 letters + 4 digits (e.g. od7270). The email is netID + suffix.
+// Official netID: 2 letters + 4 digits. The email is netID + suffix.
 export const NETID_REGEX = /^[a-z]{2}\d{4}$/;
 
 // Progressive pattern for the slot input: accepts any valid *prefix* while
@@ -11,7 +11,7 @@ export const NETID_REGEX = /^[a-z]{2}\d{4}$/;
 export const NETID_PARTIAL_PATTERN = "^(?:[a-zA-Z]{1,2}|[a-zA-Z]{2}\\d{1,4})$";
 
 export const netIdSchema = z.string().trim().toLowerCase().regex(NETID_REGEX, {
-  message: "NetID is 2 letters + 4 digits, e.g. od7270",
+  message: "Invalid NetID. It should be 2 letters followed by 4 digits.",
 });
 
 // Normalize (trim + lowercase) BEFORE validating, so a trailing space or

@@ -180,7 +180,7 @@ const Login = () => {
                 id="netid"
                 name="netid"
                 maxLength={6}
-                // Letters in slots 1–2, digits in 3–6 (e.g. od7270).
+                // Letters in slots 1–2, digits in 3–6.
                 pattern={NETID_PARTIAL_PATTERN}
                 inputMode="text"
                 autoCapitalize="off"
