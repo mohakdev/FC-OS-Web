@@ -1,5 +1,4 @@
 export * from "./activity";
-export * from "./app_settings";
 export * from "./attendance";
 export * from "./auth";
 export * from "./bug_reports";
@@ -19,6 +18,7 @@ export * from "./opus_task_labels";
 export * from "./opus_task_links";
 export * from "./opus_tasks";
 export * from "./permissions";
+export * from "./profile_details";
 export * from "./profiles";
 export * from "./role_permissions";
 export * from "./roles";

@@ -1,13 +1,16 @@
-import { Wrench } from "lucide-react";
 import { redirect } from "next/navigation";
 import CopyButton from "@/components/copy-button";
-import { Button } from "@/components/ui/button";
+import { ProfileAvatar } from "@/components/profile-avatar";
 import { getAccessContext } from "@/lib/auth/context";
-import { can } from "@/lib/auth/permissions";
-import { getAppSettings, getProfile } from "@/utils/dbActions";
-import SettingsDialog from "./settings-dialog";
+import { formatIsoDob } from "@/lib/profile/dates";
+import { linkMeta } from "@/lib/profile/links";
+import { formatPhone } from "@/lib/validation/profile";
+import { getProfile } from "@/utils/dbActions";
+import CustomizeDialog from "./customize-dialog";
 
 export const dynamic = "force-dynamic";
+
+const GENDER_LABELS = { male: "Male", female: "Female" } as const;
 
 export default async function ProfilePage() {
   const ctx = await getAccessContext();
@@ -16,9 +19,9 @@ export default async function ProfilePage() {
   const profile = await getProfile(ctx.userId);
   if (!profile) redirect("/dashboard");
 
-  const { domainLeadsCanApprove } = await getAppSettings();
-  const initials =
-    `${profile.firstName[0] ?? ""}${profile.lastName[0] ?? ""}`.toUpperCase();
+  const links = profile.links
+    .map((l) => linkMeta(l.url))
+    .filter((m) => m !== null);
 
   return (
     <div className="flex flex-col gap-6 mt-6 m-8">
@@ -26,23 +29,31 @@ export default async function ProfilePage() {
         <div>
           <h1 className="font-serif text-7xl text-primary">Your Profile</h1>
         </div>
-        <div className="flex flex-col sm:flex-row items-center gap-2">
-          {can(ctx.grants, "settings.manage") ? (
-            <SettingsDialog domainLeadsCanApprove={domainLeadsCanApprove} />
-          ) : null}
-          <Button variant={"outline"}>
-            <Wrench />
-            <span className="hidden sm:inline">Manage</span>
-          </Button>
-        </div>
+        <CustomizeDialog
+          profile={{
+            id: profile.id,
+            firstName: profile.firstName,
+            lastName: profile.lastName,
+            phone: profile.phone,
+            dateOfBirth: profile.dateOfBirth,
+            quote: profile.quote,
+            links: profile.links,
+            avatarVersion: profile.avatarVersion,
+          }}
+        />
       </div>
 
       <div className="mt-6 space-y-8">
-        {/* Section for name and initials */}
+        {/* Section for picture, name and quote */}
         <div className="flex items-center gap-6">
-          <div className="flex items-center justify-center text-5xl rounded-full bg-primary text-primary-foreground size-24 font-serif">
-            {initials}
-          </div>
+          <ProfileAvatar
+            userId={profile.id}
+            firstName={profile.firstName}
+            lastName={profile.lastName}
+            avatarVersion={profile.avatarVersion}
+            className="size-24"
+            fallbackClassName="bg-primary font-serif text-5xl text-primary-foreground"
+          />
           <div className="space-y-1 flex-1">
             <p className="text-3xl font-semibold tracking-tight">
               {profile.firstName} {profile.lastName}
@@ -51,6 +62,11 @@ export default async function ProfilePage() {
               {profile.email}
               <CopyButton value={profile.email} />
             </span>
+            {profile.quote ? (
+              <p className="max-w-prose pt-1 text-muted-foreground italic">
+                “{profile.quote}”
+              </p>
+            ) : null}
           </div>
         </div>
 
@@ -58,7 +74,9 @@ export default async function ProfilePage() {
         <div className="p-8 w-full space-y-8 sm:grid sm:grid-cols-3 md:grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="space-y-1 sm:col-span-1">
             <p className="text-lg font-medium text-muted-foreground">Phone</p>
-            <span className="text-xl font-semibold">{profile.phone}</span>
+            <span className="text-xl font-semibold">
+              {formatPhone(profile.phone)}
+            </span>
           </div>
           <div className="space-y-1 sm:col-span-1">
             <p className="text-lg font-medium text-muted-foreground">
@@ -75,7 +93,6 @@ export default async function ProfilePage() {
                 <span className="text-xl font-semibold">None</span>
               )}
             </ul>
-            {/* <span className="text-xl font-semibold">{profile.phone}</span> */}
           </div>
           <div className="space-y-1 sm:col-span-1">
             <p className="text-lg font-medium text-muted-foreground">
@@ -92,7 +109,44 @@ export default async function ProfilePage() {
                 <span className="text-xl font-semibold">None</span>
               )}
             </ul>
-            {/* <span className="text-xl font-semibold">{profile.phone}</span> */}
+          </div>
+          <div className="space-y-1 sm:col-span-1">
+            <p className="text-lg font-medium text-muted-foreground">Gender</p>
+            <span className="text-xl font-semibold">
+              {profile.gender ? GENDER_LABELS[profile.gender] : "Not set"}
+            </span>
+          </div>
+          <div className="space-y-1 sm:col-span-1">
+            <p className="text-lg font-medium text-muted-foreground">
+              Date of birth
+            </p>
+            <span className="text-xl font-semibold">
+              {formatIsoDob(profile.dateOfBirth) ?? "Not set"}
+            </span>
+          </div>
+          <div className="space-y-1 sm:col-span-1">
+            <p className="text-lg font-medium text-muted-foreground">
+              {links.length > 1 ? "Links" : "Link"}
+            </p>
+            <ul className="space-y-0.5">
+              {links.length > 0 ? (
+                links.map(({ icon: Icon, label, href }) => (
+                  <li key={href}>
+                    <a
+                      href={href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 text-xl font-semibold underline-offset-4 hover:underline"
+                    >
+                      <Icon className="size-5 shrink-0" />
+                      {label}
+                    </a>
+                  </li>
+                ))
+              ) : (
+                <span className="text-xl font-semibold">None</span>
+              )}
+            </ul>
           </div>
         </div>
       </div>

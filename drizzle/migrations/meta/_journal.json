@@ -162,6 +162,20 @@
       "when": 1794526281382,
       "tag": "0022_abandoned_screwball",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1794597493871,
+      "tag": "0023_open_rawhide_kid",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1794597500145,
+      "tag": "0024_foamy_zaladane",
+      "breakpoints": true
     }
   ]
 }

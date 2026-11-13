@@ -11,7 +11,6 @@ import {
   type PermissionId,
 } from "@/lib/auth/catalog";
 import { db } from "./db";
-import { appSettings } from "./schemas/app_settings";
 import { canonCategories } from "./schemas/canon_categories";
 import { domains } from "./schemas/domains";
 import { opusPriorities } from "./schemas/opus_priorities";
@@ -47,7 +46,7 @@ const ROLES = [
 // The role→permission grid. Reproduces the behaviour of the hardcoded role sets
 // this model replaces, exactly:
 //
-//   APPROVER_ROLES      (HRM/VP/president)              → member.* + settings.manage
+//   APPROVER_ROLES      (HRM/VP/president)              → member.*
 //   DOMAIN_MANAGER_ROLES(lead/co-lead/associate lead)   → opus.task.manage + opus.config.manage
 //   READ_ONLY_ROLES     (advisor/alumni)                → nothing at all
 //
@@ -72,7 +71,6 @@ const APPROVER: PermissionId[] = [
   "member.approve",
   "member.manage",
   "member.remove",
-  "settings.manage",
   ...OPUS_MANAGER,
   ...CANON_SPOC,
   "canon.event.manage",
@@ -135,9 +133,6 @@ async function seed() {
     .values(ROLES.map((r) => ({ id: r.id, scope: r.scope })))
     .onConflictDoNothing();
 
-  // Singleton settings row (id=1), defaults applied by the schema.
-  await db.insert(appSettings).values({ id: 1 }).onConflictDoNothing();
-
   await db
     .insert(permissions)
     .values(
@@ -149,30 +144,17 @@ async function seed() {
     )
     .onConflictDoNothing();
 
-  // `member.approve` for domain leads is the `domainLeadsCanApprove` toggle in
-  // permission form. Seed it from the LIVE setting, never a hardcoded default —
-  // the flag is currently ON in production, so assuming `false` here would
-  // silently strip approval rights from every lead in the club.
-  const [settings] = await db
-    .select({ domainLeadsCanApprove: appSettings.domainLeadsCanApprove })
-    .from(appSettings)
-    .limit(1);
-  const domainLeadsCanApprove = settings?.domainLeadsCanApprove ?? false;
-
-  const grants = (Object.keys(BASE_GRANTS) as RoleId[]).flatMap((roleId) => {
-    const perms = BASE_GRANTS[roleId];
-    const effective: PermissionId[] =
-      domainLeadsCanApprove && (roleId === "lead" || roleId === "co-lead")
-        ? [...perms, "member.approve"]
-        : perms;
-    return effective.map((permissionId) => ({ roleId, permissionId }));
-  });
+  // `member.approve` for lead/co-lead is NOT seeded: it is an org decision made
+  // in the permission grid (/dashboard/settings/roles). `onConflictDoNothing`
+  // below never strips grants, so re-seeding keeps whatever the grid says.
+  const grants = (Object.keys(BASE_GRANTS) as RoleId[]).flatMap((roleId) =>
+    BASE_GRANTS[roleId].map((permissionId) => ({ roleId, permissionId })),
+  );
 
   await db.insert(rolePermissions).values(grants).onConflictDoNothing();
 
   console.log(
-    `Seeded ${PERMISSIONS.length} permissions + ${grants.length} role grants ` +
-      `(domainLeadsCanApprove=${domainLeadsCanApprove}).`,
+    `Seeded ${PERMISSIONS.length} permissions + ${grants.length} role grants.`,
   );
 
   for (const domainId of DOMAIN_IDS) {
@@ -212,7 +194,7 @@ async function seed() {
     .onConflictDoNothing();
 
   console.log(
-    "Seeded domains + roles + permissions + settings + opus statuses + priorities + canon categories.",
+    "Seeded domains + roles + permissions + opus statuses + priorities + canon categories.",
   );
 }
 

@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
+import { ProfileAvatar } from "@/components/profile-avatar";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,7 +25,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -60,6 +60,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { linkMeta } from "@/lib/profile/links";
+import { formatPhone } from "@/lib/validation/profile";
 import type { ApprovedMember } from "@/utils/dbActions";
 import { removeMember, updateMember } from "./actions";
 
@@ -102,10 +104,6 @@ function formatBirthday(dob: string) {
     year: "numeric",
     timeZone: "UTC",
   });
-}
-
-function initials(firstName: string, lastName: string) {
-  return `${firstName[0] ?? ""}${lastName[0] ?? ""}`.toUpperCase();
 }
 
 function capitalize(s: string) {
@@ -598,11 +596,14 @@ export default function MemberDirectoryClient({
               >
                 <TableCell>
                   <div className="flex items-center gap-3">
-                    <Avatar className="h-8 w-8">
-                      <AvatarFallback className="text-xs">
-                        {initials(member.firstName, member.lastName)}
-                      </AvatarFallback>
-                    </Avatar>
+                    <ProfileAvatar
+                      userId={member.id}
+                      firstName={member.firstName}
+                      lastName={member.lastName}
+                      avatarVersion={member.avatarVersion}
+                      className="h-8 w-8"
+                      fallbackClassName="text-xs"
+                    />
                     <span>
                       {member.firstName} {member.lastName}
                     </span>
@@ -688,11 +689,14 @@ export default function MemberDirectoryClient({
             <>
               <SheetHeader>
                 <div className="flex items-center gap-4">
-                  <Avatar className="h-14 w-14">
-                    <AvatarFallback className="text-base">
-                      {initials(selected.firstName, selected.lastName)}
-                    </AvatarFallback>
-                  </Avatar>
+                  <ProfileAvatar
+                    userId={selected.id}
+                    firstName={selected.firstName}
+                    lastName={selected.lastName}
+                    avatarVersion={selected.avatarVersion}
+                    className="h-14 w-14"
+                    fallbackClassName="text-base"
+                  />
                   <div>
                     <SheetTitle>
                       {selected.firstName} {selected.lastName}
@@ -702,6 +706,11 @@ export default function MemberDirectoryClient({
                     </SheetDescription>
                   </div>
                 </div>
+                {selected.quote ? (
+                  <p className="pt-2 text-sm text-muted-foreground italic">
+                    “{selected.quote}”
+                  </p>
+                ) : null}
               </SheetHeader>
 
               <div className="mt-6 space-y-4 px-4">
@@ -770,9 +779,10 @@ export default function MemberDirectoryClient({
                     className="flex items-center gap-2 text-sm hover:underline"
                   >
                     <Phone className="h-4 w-4 shrink-0" />
-                    {selected.phone}
+                    {formatPhone(selected.phone)}
                   </a>
                 </div>
+                <MemberLinks links={selected.links} />
               </div>
 
               {canManage && (
@@ -787,5 +797,32 @@ export default function MemberDirectoryClient({
         </SheetContent>
       </Sheet>
     </>
+  );
+}
+
+function MemberLinks({ links }: { links: ApprovedMember["links"] }) {
+  const metas = links.map((l) => linkMeta(l.url)).filter((m) => m !== null);
+  if (metas.length === 0) return null;
+  return (
+    <div className="flex items-start gap-3">
+      <span className="w-20 shrink-0 pt-0.5 text-sm text-muted-foreground">
+        Links
+      </span>
+      <ul className="min-w-0 space-y-2">
+        {metas.map(({ icon: Icon, label, href }) => (
+          <li key={href}>
+            <a
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-2 text-sm hover:underline"
+            >
+              <Icon className="h-4 w-4 shrink-0" />
+              <span className="break-all">{label}</span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }

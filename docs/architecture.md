@@ -40,9 +40,9 @@ Tables: `roles` (enum `role_label`, `member` → `president` plus read-only `adv
 multi-domain membership = one row per domain). Domains: `technical`, `creatives`,
 `operations`, `outreach`.
 
-The catalog is `src/lib/auth/catalog.ts` (8 permissions: `member.approve|manage|remove`,
-`settings.manage`, `role.manage`, `opus.task.manage`, `opus.config.manage`,
-`opus.task.status.own`). `seed.ts` seeds the grid. Only add a permission when the feature
+The catalog is `src/lib/auth/catalog.ts` (`member.approve|manage|remove`, `role.manage`,
+`opus.*`, `bug.manage`, `canon.*`, `platform.view_as`). `settings.manage` was removed
+2026-11-14 along with the profile-page Settings dialog. `seed.ts` seeds the grid. Only add a permission when the feature
 it gates exists — a checkbox that does nothing destroys trust in the grid.
 
 **Scope is what narrows a grant to a domain**, and it is the *only* thing that does.
@@ -108,10 +108,10 @@ president — `setMemberRoles`) and `profiles.status` (reject or remove them —
 no approved users can still approve its first president. Holders count only via
 `global`-scoped roles, since both pages the invariant protects gate on `can()`.
 
-The old `app_settings.domainLeadsCanApprove` toggle is now just a grant: it adds/removes
-`member.approve` on `lead`/`co-lead`, and scope reproduces the own-domain-only intersection
-for free. The column survives as a mirror; drop it once the grid replaces the switch in the
-profile settings modal.
+"Domain leads can approve members" is just a grant: tick `member.approve` on
+`lead`/`co-lead` in the grid, and scope reproduces the own-domain-only intersection for free.
+The old profile-page Settings toggle and its `app_settings` mirror table were removed
+2026-11-14; the seed no longer grants it, so the grid is the only place it is decided.
 
 **Superadmin + "view as"** — `superadmin` is the platform maintainer's role: global scope,
 holds every permission, whole grid row protected (`PROTECTED_GRANTS`), and **DB-only** —
@@ -135,6 +135,21 @@ real grants (`intersectGrants`) so a switch can only narrow. `realGrants` (switc
   then call a `dbActions` helper.
 - The `neon-http` driver has **no interactive transactions** — use `db.batch([...])` for
   atomic multi-statement writes (see `onboardProfile`).
+
+### Profile + avatars
+
+- `/dashboard/profile` → **Customize** dialog (`profile/customize-dialog.tsx`): own profile
+  only, any approved member, no permission. Edits `profiles.phone` (Indian 10-digit,
+  stored `+91XXXXXXXXXX`, unique) + `date_of_birth`, and `profile_details` (quote ≤150,
+  ≤3 links, avatar key). Rules: `src/lib/validation/profile.ts`.
+- Links store only the URL; icon + label come from the hostname at render time
+  (`src/lib/profile/links.ts`). Unknown hosts (personal sites) → globe + bare hostname.
+- Avatars: client crops (react-easy-crop) → server re-encodes with sharp to 512px webp →
+  private S3-compatible bucket via `src/lib/storage/s3.ts` (env `S3_ENDPOINT`,
+  `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_BUCKET`, optional `S3_REGION`). Browsers never hit
+  the bucket: `src/app/api/avatar/[userId]/route.ts` is auth-gated (approved members) and
+  streams it, cached `private, immutable` behind a `?v=<avatar_updated_at>` buster.
+  Render with `src/components/profile-avatar.tsx`.
 
 ### App structure
 

@@ -127,11 +127,8 @@ are supposed to be a duplicate, and should never be derived from anything.
 
 ## Not doing (deliberately)
 
-- **Dropping `app_settings.domain_leads_can_approve`.** It's a vestigial mirror now — the
-  toggle writes grants, and `getAppSettings()` reads the grid. Harmless to keep. `DROP
-  COLUMN` on prod is irreversible without a restore, and `seed.ts` still reads the column to
-  decide the domain-lead grant, so removing it means reworking the seed's default too.
-  Revisit only once the admin grid has visibly replaced the profile-page switch.
+- ~~Dropping `app_settings.domain_leads_can_approve`~~ — done 2026-11-14: the Settings
+  dialog, `settings.manage` and the `app_settings` table are gone; the grid decides.
 - **Postgres RLS.** Considered and rejected: the app connects as a single owner role, so
   policies would need a non-owner DB role plus per-request `SET LOCAL app.user_id`, and every
   query path re-audited. The app is the trust boundary; app-level checks are the right layer

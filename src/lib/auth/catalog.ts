@@ -25,11 +25,6 @@ export const PERMISSIONS = [
     description: "Remove an approved member from the club.",
   },
   {
-    id: "settings.manage",
-    label: "Manage app settings",
-    description: "Change app-wide settings.",
-  },
-  {
     id: "role.manage",
     label: "Manage roles & permissions",
     description:

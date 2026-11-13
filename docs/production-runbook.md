@@ -15,6 +15,7 @@ Live deployment on box **`claw`** (Ubuntu 26.04, Coolify 4.5). `ssh aio` →
 | WARP carrier | Zero Trust team `srm2k29`, enrolled by service token `claw-warp` (`/var/lib/cloudflare-warp/mdm.xml`); profile `claw (cloudflared carrier)`: MASQUE, Include split tunnel `198.41.192.0/24` + `198.41.200.0/24` only |
 | Tunnel guard | `/usr/local/sbin/fcos-tunnel-guard.sh` + `fcos-tunnel-guard.timer` (root, every 5 min) |
 | Standby (parked) | Worker `fc-os-proxy` (deployed, no domains) → Funnel `claw.tail3b56f7.ts.net` → Caddy shim `127.0.0.1:18080`. `fcos-funnel-guard.timer` is **disabled**: its public probe would now test the tunnel |
+| Object storage | Coolify one-click **Garage** service (`dxflrs/garage`, `--single-node --default-bucket`), private, no domain, joined to the `coolify` network. Bucket `avatars` (profile pictures). App env: `S3_ENDPOINT=http://<garage container>:3900`, `S3_REGION=garage`, `S3_BUCKET=avatars`, `S3_ACCESS_KEY`/`S3_SECRET_KEY` = the service's `SERVICE_USER_GARAGE`/`SERVICE_PASSWORD_64_GARAGE`. Volumes `garage-meta`/`garage-data` are **not** in the Postgres backup (losing them = members re-upload pictures) |
 | Backups | `scripts/backup-to-github.sh` + user timers `fcos-backup{,-push}.timer` |
 | Ops checkout | `~/fc-os-web` (scripts/units only, not served) |
 | Prod DB access (Mac) | `bun run db:push:prod / db:sql:prod / db:seed:prod / db:studio:prod / db:psql:prod`; see `pushing-migrations.md` |
@@ -34,7 +35,7 @@ Live deployment on box **`claw`** (Ubuntu 26.04, Coolify 4.5). `ssh aio` →
 
 ## Secrets
 
-Coolify env only: `DATABASE_URL`, `BETTER_AUTH_SECRET`, `SMTP_PASS`. `BETTER_AUTH_SECRET` and the backup
+Coolify env only: `DATABASE_URL`, `BETTER_AUTH_SECRET`, `SMTP_PASS`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`. `BETTER_AUTH_SECRET` and the backup
 `age.key` must also live in the owner's password manager (no `age.key` = no restore). Never commit secrets.
 
 ## Backups

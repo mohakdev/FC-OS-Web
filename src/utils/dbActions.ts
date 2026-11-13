@@ -2,11 +2,13 @@
 // go through validation + access control at the calling Server Action; these
 // helpers own the actual SQL.
 
-import { and, eq, inArray } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "../database/db";
-import { appSettings } from "../database/schemas/app_settings";
+import {
+  type ProfileLink,
+  profileDetails,
+} from "../database/schemas/profile_details";
 import { type NewProfile, profiles } from "../database/schemas/profiles";
-import { rolePermissions } from "../database/schemas/role_permissions";
 import type { rolesEnum } from "../database/schemas/roles";
 import { userRoles } from "../database/schemas/user_roles";
 import { SUPERADMIN_ROLE } from "../lib/auth/catalog";
@@ -128,6 +130,13 @@ export type PendingMember = Awaited<
 >[number];
 
 /** Returns all approved members with their domains and roles, for the directory. */
+/**
+ * The avatar's `?v=` cache-buster, or null when the member has no picture
+ * (render initials). See `src/components/profile-avatar.tsx`.
+ */
+const avatarVersion = (key: string | null, updatedAt: Date | null) =>
+  key ? (updatedAt?.getTime() ?? 0) : null;
+
 export const getApprovedMembers = async () => {
   const rows = await db
     .select({
@@ -142,11 +151,16 @@ export const getApprovedMembers = async () => {
       status: profiles.status,
       approvedBy: profiles.approvedBy,
       decidedAt: profiles.decidedAt,
+      quote: profileDetails.quote,
+      links: profileDetails.links,
+      avatarKey: profileDetails.avatarKey,
+      avatarUpdatedAt: profileDetails.avatarUpdatedAt,
       domain: userRoles.domain,
       role: userRoles.role,
     })
     .from(profiles)
     .leftJoin(userRoles, eq(userRoles.id, profiles.id))
+    .leftJoin(profileDetails, eq(profileDetails.userId, profiles.id))
     .where(eq(profiles.status, "approved"))
     .orderBy(profiles.firstName);
 
@@ -164,6 +178,9 @@ export const getApprovedMembers = async () => {
       status: "pending_approval" | "approved" | "rejected";
       approvedBy: string | null;
       decidedAt: Date | null;
+      quote: string | null;
+      links: ProfileLink[];
+      avatarVersion: number | null;
       domains: string[];
       rolePairs: { role: string; domain: string | null }[];
     }
@@ -192,6 +209,9 @@ export const getApprovedMembers = async () => {
         status: row.status,
         approvedBy: row.approvedBy,
         decidedAt: row.decidedAt,
+        quote: row.quote,
+        links: row.links ?? [],
+        avatarVersion: avatarVersion(row.avatarKey, row.avatarUpdatedAt),
         domains: row.domain ? [row.domain] : [],
         rolePairs: row.role ? [{ role: row.role, domain: row.domain }] : [],
       });
@@ -214,11 +234,18 @@ export const getProfile = async (profileId: string) => {
       lastName: profiles.lastName,
       email: profiles.email,
       phone: profiles.phone,
+      gender: profiles.gender,
+      dateOfBirth: profiles.dateOfBirth,
+      quote: profileDetails.quote,
+      links: profileDetails.links,
+      avatarKey: profileDetails.avatarKey,
+      avatarUpdatedAt: profileDetails.avatarUpdatedAt,
       role: userRoles.role,
       domain: userRoles.domain,
     })
     .from(profiles)
     .leftJoin(userRoles, eq(userRoles.id, profiles.id))
+    .leftJoin(profileDetails, eq(profileDetails.userId, profiles.id))
     .where(eq(profiles.id, profileId));
 
   const first = rows[0];
@@ -235,83 +262,14 @@ export const getProfile = async (profileId: string) => {
     lastName: first.lastName,
     email: first.email,
     phone: first.phone,
+    gender: first.gender,
+    dateOfBirth: first.dateOfBirth,
+    quote: first.quote,
+    links: first.links ?? [],
+    avatarVersion: avatarVersion(first.avatarKey, first.avatarUpdatedAt),
     roles,
     domains,
   };
-};
-
-// The roles the "domain leads can approve members" toggle grants `member.approve`
-// to. Both are domain-scoped, so the grant resolves only within the domains a
-// given lead actually leads — which is exactly what the old hand-written
-// `memberDomains.some(d => ctx.domainIds.includes(d))` intersection did.
-const DOMAIN_LEAD_APPROVER_ROLES = ["lead", "co-lead"] as const;
-
-/**
- * Is the "domain leads can approve" capability currently granted?
- *
- * Read from the permission grid, not from `app_settings` — the grid is the
- * source of truth now, and the column is only kept in sync as a mirror so the
- * seed can still read the intended default. (Drop the column once the admin grid
- * has replaced this toggle in the UI.)
- */
-export const getAppSettings = async (): Promise<{
-  domainLeadsCanApprove: boolean;
-}> => {
-  const [row] = await db
-    .select({ permissionId: rolePermissions.permissionId })
-    .from(rolePermissions)
-    .where(
-      and(
-        eq(rolePermissions.roleId, "lead"),
-        eq(rolePermissions.permissionId, "member.approve"),
-      ),
-    )
-    .limit(1);
-
-  return { domainLeadsCanApprove: Boolean(row) };
-};
-
-/**
- * Toggles domain-lead approval by granting/revoking `member.approve` on the
- * domain-lead roles — the toggle IS a permission grant. Keeps the legacy
- * `app_settings` column in sync as a mirror.
- *
- * Writes `role_permissions` without the org-lockout invariant the permission
- * grid runs, and that is fine: it only ever touches `member.approve`, which is
- * not in `MUST_HAVE_A_HOLDER`. Widen the columns it may touch and that stops
- * being true.
- */
-export const setDomainLeadsCanApprove = async (enabled: boolean) => {
-  await db.transaction(async (tx) => {
-    if (enabled) {
-      await tx
-        .insert(rolePermissions)
-        .values(
-          DOMAIN_LEAD_APPROVER_ROLES.map((roleId) => ({
-            roleId,
-            permissionId: "member.approve",
-          })),
-        )
-        .onConflictDoNothing();
-    } else {
-      await tx
-        .delete(rolePermissions)
-        .where(
-          and(
-            inArray(rolePermissions.roleId, [...DOMAIN_LEAD_APPROVER_ROLES]),
-            eq(rolePermissions.permissionId, "member.approve"),
-          ),
-        );
-    }
-
-    await tx
-      .insert(appSettings)
-      .values({ id: 1, domainLeadsCanApprove: enabled, updatedAt: new Date() })
-      .onConflictDoUpdate({
-        target: appSettings.id,
-        set: { domainLeadsCanApprove: enabled, updatedAt: new Date() },
-      });
-  });
 };
 
 /** Returns the domain ids a profile belongs to (from `user_roles`). */
@@ -417,5 +375,89 @@ export const setMemberDecision = async (
 
     const lost = missingAfter(before, await heldMustHavePermissions(tx));
     if (lost.length > 0) throw new Error(lockoutMessage(lost));
+  });
+};
+
+// ---------------------------------------------------------------------------
+// Self-service profile (Customize dialog). Callers pass `ctx.userId` only —
+// these never take a user id from the client.
+// ---------------------------------------------------------------------------
+
+/** Is `phone` already used by a profile other than `profileId`? */
+export const isPhoneTaken = async (phone: string, profileId: string) => {
+  const [row] = await db
+    .select({ id: profiles.id })
+    .from(profiles)
+    .where(eq(profiles.phone, phone))
+    .limit(1);
+  return Boolean(row && row.id !== profileId);
+};
+
+/** Writes the editable `profiles` columns + upserts `profile_details` atomically. */
+export const updateOwnProfileDetails = async (
+  profileId: string,
+  input: {
+    phone: string;
+    dateOfBirth: string;
+    quote: string | null;
+    links: ProfileLink[];
+  },
+) => {
+  const now = new Date();
+  await db.transaction(async (tx) => {
+    await tx
+      .update(profiles)
+      .set({ phone: input.phone, dateOfBirth: input.dateOfBirth })
+      .where(eq(profiles.id, profileId));
+    await tx
+      .insert(profileDetails)
+      .values({
+        userId: profileId,
+        quote: input.quote,
+        links: input.links,
+        updatedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: profileDetails.userId,
+        set: { quote: input.quote, links: input.links, updatedAt: now },
+      });
+  });
+};
+
+/** Current avatar object key for a profile, or null. */
+export const getAvatarKey = async (profileId: string) => {
+  const [row] = await db
+    .select({ key: profileDetails.avatarKey })
+    .from(profileDetails)
+    .where(eq(profileDetails.userId, profileId))
+    .limit(1);
+  return row?.key ?? null;
+};
+
+/**
+ * Points a profile at a new avatar object (or none, with `key = null`).
+ * Returns the previous key so the caller can delete the old object.
+ */
+export const setAvatarKey = async (profileId: string, key: string | null) => {
+  const now = new Date();
+  return db.transaction(async (tx) => {
+    const [prev] = await tx
+      .select({ key: profileDetails.avatarKey })
+      .from(profileDetails)
+      .where(eq(profileDetails.userId, profileId))
+      .for("update");
+    await tx
+      .insert(profileDetails)
+      .values({
+        userId: profileId,
+        avatarKey: key,
+        avatarUpdatedAt: now,
+        updatedAt: now,
+      })
+      .onConflictDoUpdate({
+        target: profileDetails.userId,
+        set: { avatarKey: key, avatarUpdatedAt: now, updatedAt: now },
+      });
+    return prev?.key ?? null;
   });
 };

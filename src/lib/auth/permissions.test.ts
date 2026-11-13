@@ -65,11 +65,10 @@ const APPROVER = [
   "member.approve",
   "member.manage",
   "member.remove",
-  "settings.manage",
   ...OPUS_MANAGER,
 ];
 
-// domainLeadsCanApprove is TRUE in production — see seed.ts.
+// Production grants `member.approve` to lead/co-lead via the permission grid.
 const DOMAIN_LEADS_CAN_APPROVE = true;
 const leadGrants = DOMAIN_LEADS_CAN_APPROVE
   ? [...OPUS_MANAGER, "member.approve"]
