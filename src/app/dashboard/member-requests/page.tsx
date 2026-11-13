@@ -2,8 +2,8 @@ import { redirect } from "next/navigation";
 
 import { Refresher } from "@/components/realtime/refresher";
 import { getAccessContext } from "@/lib/auth/context";
-import { canAny, canIn } from "@/lib/auth/permissions";
-import { getPendingMembers } from "@/utils/dbActions";
+import { canAny } from "@/lib/auth/permissions";
+import { getPendingMembersFor } from "@/utils/dbActions";
 import MemberRequestRow from "./member-request-row";
 
 export const dynamic = "force-dynamic";
@@ -16,13 +16,8 @@ export default async function MemberRequestsPage() {
   // capability. `canAny` = holds `member.approve` globally or in some domain.
   if (!canAny(ctx.grants, "member.approve")) redirect("/dashboard");
 
-  const allPending = await getPendingMembers();
-  // Show only applicants the viewer could actually decide on. For a global
-  // approver `canIn` is true everywhere; for a lead it is true only in the
-  // domains they lead — so the list narrows itself with no special case.
-  const members = allPending.filter((m) =>
-    m.domains.some((d) => canIn(ctx.grants, "member.approve", d)),
-  );
+  // Only applicants the viewer could actually decide on.
+  const members = await getPendingMembersFor(ctx.grants);
 
   return (
     <div className="flex flex-col gap-4">

@@ -11,6 +11,7 @@ import type { rolesEnum } from "../database/schemas/roles";
 import { userRoles } from "../database/schemas/user_roles";
 import { SUPERADMIN_ROLE } from "../lib/auth/catalog";
 import { lockoutMessage, missingAfter } from "../lib/auth/lockout";
+import { canIn, type Grants } from "../lib/auth/permissions";
 import {
   getRoleScopes,
   heldMustHavePermissions,
@@ -110,6 +111,17 @@ export const getPendingMembers = async () => {
 
   return [...byProfile.values()];
 };
+
+/**
+ * Pending applicants the viewer can actually decide on. A global approver's
+ * `canIn` is true everywhere; a lead's only in the domains they lead — so the
+ * list narrows itself with no special case. Shared by the Member Requests page
+ * and the sidebar badge so the two never disagree.
+ */
+export const getPendingMembersFor = async (grants: Grants) =>
+  (await getPendingMembers()).filter((m) =>
+    m.domains.some((d) => canIn(grants, "member.approve", d)),
+  );
 
 export type PendingMember = Awaited<
   ReturnType<typeof getPendingMembers>
