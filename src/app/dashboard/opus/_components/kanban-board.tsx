@@ -441,6 +441,10 @@ export function KanbanBoard({
       {view === "board" ? (
         <ScrollArea className={cn("min-h-0 min-w-0 flex-1", fillViewport)}>
           <DndContext
+            // Stable id: dnd-kit otherwise numbers its a11y description ids
+            // from a module counter, which differs between server and client
+            // (`DndDescribedBy-0` vs `-1`) and breaks hydration.
+            id={`opus-board-${domain}`}
             sensors={sensors}
             collisionDetection={closestCorners}
             onDragStart={handleDragStart}
