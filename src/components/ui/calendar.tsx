@@ -200,6 +200,16 @@ function CalendarDayButton({
     if (modifiers.focused) ref.current?.focus();
   }, [modifiers.focused]);
 
+  // Hover must respect selection. The ghost variant's `dark:hover:*` rules land
+  // after the `data-[range-*]` rules in the compiled CSS, so in dark mode a
+  // hovered endpoint lost its primary fill (upstream shadcn has the same bug;
+  // its neutral palette just hides it). Overriding with same-variant classes
+  // here lets `cn` replace the ghost hover by merge instead of CSS order.
+  const isMiddle = Boolean(modifiers.range_middle);
+  const isEndpoint =
+    Boolean(modifiers.range_start || modifiers.range_end) ||
+    (Boolean(modifiers.selected) && !isMiddle);
+
   return (
     <Button
       ref={ref}
@@ -216,7 +226,12 @@ function CalendarDayButton({
       data-range-end={modifiers.range_end}
       data-range-middle={modifiers.range_middle}
       className={cn(
-        "relative isolate z-10 flex aspect-square size-auto w-full min-w-(--cell-size) flex-col gap-1 border-0 leading-none font-normal group-data-[focused=true]/day:relative group-data-[focused=true]/day:z-10 group-data-[focused=true]/day:border-ring group-data-[focused=true]/day:ring-[3px] group-data-[focused=true]/day:ring-ring/50 data-[range-end=true]:rounded-(--cell-radius) data-[range-end=true]:rounded-r-(--cell-radius) data-[range-end=true]:bg-primary data-[range-end=true]:text-primary-foreground data-[range-middle=true]:rounded-none data-[range-middle=true]:bg-primary/15 data-[range-middle=true]:text-foreground dark:data-[range-middle=true]:bg-primary/20 data-[range-start=true]:rounded-(--cell-radius) data-[range-start=true]:rounded-l-(--cell-radius) data-[range-start=true]:bg-primary data-[range-start=true]:text-primary-foreground data-[selected-single=true]:bg-primary data-[selected-single=true]:text-primary-foreground dark:hover:text-foreground [&>span]:text-xs [&>span]:opacity-70",
+        "relative isolate z-10 flex aspect-square size-auto w-full min-w-(--cell-size) flex-col gap-1 border-0 leading-none font-normal group-data-[focused=true]/day:relative group-data-[focused=true]/day:z-10 group-data-[focused=true]/day:border-ring group-data-[focused=true]/day:ring-[3px] group-data-[focused=true]/day:ring-ring/50 data-[range-end=true]:rounded-(--cell-radius) data-[range-end=true]:rounded-r-(--cell-radius) data-[range-end=true]:bg-primary data-[range-end=true]:text-primary-foreground data-[range-middle=true]:rounded-none data-[range-middle=true]:bg-primary/15 data-[range-middle=true]:text-foreground dark:data-[range-middle=true]:bg-primary/20 data-[range-start=true]:rounded-(--cell-radius) data-[range-start=true]:rounded-l-(--cell-radius) data-[range-start=true]:bg-primary data-[range-start=true]:text-primary-foreground data-[selected-single=true]:bg-primary data-[selected-single=true]:text-primary-foreground [&>span]:text-xs [&>span]:opacity-70",
+        !isEndpoint && !isMiddle && "dark:hover:text-foreground",
+        isEndpoint &&
+          "hover:bg-primary/90 hover:text-primary-foreground dark:hover:bg-primary/90 dark:hover:text-primary-foreground",
+        isMiddle &&
+          "hover:bg-primary/25 hover:text-foreground dark:hover:bg-primary/30 dark:hover:text-foreground",
         defaultClassNames.day,
         className,
       )}
