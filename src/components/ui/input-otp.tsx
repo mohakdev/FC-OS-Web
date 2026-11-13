@@ -74,6 +74,7 @@ function InputOTPSeparator({ ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="input-otp-separator"
       className="flex items-center [&_svg:not([class*='size-'])]:size-4"
+      // biome-ignore lint/a11y/useAriaPropsForRole: static, non-focusable divider between OTP slot groups; aria-valuenow only applies to focusable separators
       role="separator"
       {...props}
     >
