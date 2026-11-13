@@ -30,6 +30,8 @@ export type AccessContext = {
   authUserId: string;
   firstName: string;
   lastName: string;
+  /** Sign-in email from the Better Auth session (`user.email`). */
+  email: string;
   status: ProfileStatus;
   roleIds: string[];
   /** Domains the user belongs to (empty for global-only roles). */
@@ -129,6 +131,7 @@ export const getAuthState = cache(async (): Promise<AuthState> => {
     authUserId: user.id,
     firstName: profile.firstName,
     lastName: profile.lastName,
+    email: user.email,
     status: profile.status,
     realGrants,
   };
