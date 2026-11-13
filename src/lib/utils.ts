@@ -1,9 +1,7 @@
-import { type ClassValue, clsx } from "clsx";
-import { twMerge } from "tailwind-merge";
-
-export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
+// shadcn's `cn` package: drop-in replacement for twMerge(clsx(...)), same
+// output (parity-checked against every class string in this repo, 2026-11-13).
+// New shadcn registry components import `cn` from "cn" directly — same function.
+export { cn } from "cn";
 
 /**
  * PRESENTATION ONLY — which roles get the "leadership" badge treatment on the
