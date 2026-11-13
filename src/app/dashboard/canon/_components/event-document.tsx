@@ -54,7 +54,7 @@ function Section({
 }) {
   return (
     <section className="flex flex-col gap-3">
-      <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+      <h2 className="text-sm font-semibold text-muted-foreground">
         {title}
       </h2>
       {children}
@@ -170,7 +170,7 @@ export function EventDocument({
         </Button>
         {!editing && (
           <div className="flex items-center gap-2">
-            {event.status === "draft" && <Badge variant="outline">Draft</Badge>}
+            {event.status === "draft" && <Badge variant="destructive">Draft</Badge>}
             {canEdit && (
               <Button
                 variant="outline"
@@ -198,10 +198,10 @@ export function EventDocument({
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button
-                    variant="ghost"
+                    variant="destructive"
                     size="icon"
                     aria-label="Delete event"
-                    className="text-muted-foreground hover:text-destructive"
+                    // className="hover:text-destructive"
                   >
                     <Trash2 className="size-4" />
                   </Button>

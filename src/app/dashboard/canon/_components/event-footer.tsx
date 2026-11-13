@@ -8,7 +8,7 @@ export type FooterInfo = {
 
 export function EventFooter({ info }: { info: FooterInfo }) {
   return (
-    <footer className="flex flex-wrap gap-x-6 gap-y-1 border-t pt-4 text-xs text-muted-foreground">
+    <footer className="flex flex-wrap gap-x-6 gap-y-1 border-t pt-4 text-xs text-muted-foreground items-center justify-between">
       <span>
         <span className="font-medium">Created at:</span> {info.createdAt}
       </span>
