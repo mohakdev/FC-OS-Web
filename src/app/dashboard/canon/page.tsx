@@ -35,7 +35,7 @@ export default async function CanonIndexPage() {
         <div>
           <h1 className="font-serif text-7xl text-primary">Canon</h1>
           <p className="text-sm text-muted-foreground">
-          The official single source of truth directory.
+            The official single source of truth directory.
           </p>
         </div>
         {canManage && (

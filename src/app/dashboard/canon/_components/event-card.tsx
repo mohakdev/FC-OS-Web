@@ -24,7 +24,9 @@ export function EventCard({ event }: { event: CanonEventCard }) {
           <CardTitle className="font-serif text-3xl">{event.name}</CardTitle>
           <CardDescription className="flex flex-wrap gap-1 mt-1">
             <Badge variant="default">{event.categoryName}</Badge>
-            {event.status === "draft" && <Badge variant="destructive">Draft</Badge>}
+            {event.status === "draft" && (
+              <Badge variant="destructive">Draft</Badge>
+            )}
             <Badge variant="outline">{feeLabel(event.isPaid, event.fee)}</Badge>
             <Badge variant="outline">
               {participationLabel(
