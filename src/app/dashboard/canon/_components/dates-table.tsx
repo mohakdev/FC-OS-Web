@@ -27,8 +27,8 @@ import {
 } from "@/lib/canon/constants";
 import { formatDay } from "@/lib/canon/format";
 import type { CanonDate } from "@/utils/canonDbActions";
-import { BadgeSelect } from "./badge-select";
 import type { Draft } from "./draft";
+import { OptionSelect } from "./option-select";
 
 const toIso = (d: Date) => format(d, "yyyy-MM-dd");
 
@@ -108,10 +108,10 @@ export function DatesTable({
     set({ dates: { ...d.dates, [kind]: value } });
 
   return (
-    <section aria-label="Dates">
-      <Table>
+    <section aria-label="Dates" className="rounded-lg overflow-scroll">
+      <Table className="">
         <TableHeader>
-          <TableRow>
+          <TableRow className="*:text-primary *:font-bold">
             <TableHead className="w-36">Dates</TableHead>
             <TableHead>Start</TableHead>
             <TableHead>End</TableHead>
@@ -123,7 +123,7 @@ export function DatesTable({
             const row = d.dates[kind];
             return (
               <TableRow key={kind}>
-                <TableCell className="font-medium">
+                <TableCell className="font-bold text-primary">
                   {DATE_KIND_LABEL[kind]}
                 </TableCell>
                 <TableCell className="tabular-nums">
@@ -162,9 +162,8 @@ export function DatesTable({
                 <TableCell className="text-right">
                   {row &&
                     (editing ? (
-                      <BadgeSelect
+                      <OptionSelect
                         label={`${DATE_KIND_LABEL[kind]} date status`}
-                        variant={DATE_STATUS_META[row.status].variant}
                         value={row.status}
                         onChange={(status) => setKind(kind, { ...row, status })}
                         options={DATE_STATUSES.map((s) => ({

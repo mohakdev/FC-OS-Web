@@ -75,9 +75,15 @@ export function formatRange(start: string, end: string | null): string {
     : formatDay(start);
 }
 
+/** Paid, but the amount hasn't been decided yet (fee is optional). */
+export const isFeeTbd = (isPaid: boolean, fee: number | null) =>
+  isPaid && fee == null;
+
 export function feeLabel(isPaid: boolean, fee: number | null): string {
   if (!isPaid) return "Free";
-  return fee != null ? `Paid · ₹${fee.toLocaleString("en-IN")}` : "Paid";
+  return fee != null
+    ? `Paid · ₹${fee.toLocaleString("en-IN")}`
+    : "Paid · Fee TBD";
 }
 
 /**

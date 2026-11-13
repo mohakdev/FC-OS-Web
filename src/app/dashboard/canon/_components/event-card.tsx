@@ -9,8 +9,9 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { DATE_STATUS_META } from "@/lib/canon/constants";
-import { feeLabel, formatRange, participationLabel } from "@/lib/canon/format";
+import { formatRange, participationLabel } from "@/lib/canon/format";
 import type { CanonEventCard } from "@/utils/canonDbActions";
+import { FeeBadge } from "./fee-badge";
 
 export function EventCard({ event }: { event: CanonEventCard }) {
   const date = event.eventDate;
@@ -27,8 +28,8 @@ export function EventCard({ event }: { event: CanonEventCard }) {
             {event.status === "draft" && (
               <Badge variant="destructive">Draft</Badge>
             )}
-            <Badge variant="outline">{feeLabel(event.isPaid, event.fee)}</Badge>
-            <Badge variant="outline">
+            <FeeBadge isPaid={event.isPaid} fee={event.fee} />
+            <Badge variant="info">
               {participationLabel(
                 event.participation,
                 event.teamMin,

@@ -16,11 +16,12 @@ import {
   TEAM_MAX,
   TEAM_MIN,
 } from "@/lib/canon/constants";
-import { feeLabel, participationLabel } from "@/lib/canon/format";
+import { participationLabel } from "@/lib/canon/format";
 import type { CanonCategoryRow } from "@/utils/canonDbActions";
-import { BadgeSelect } from "./badge-select";
 import type { Draft } from "./draft";
+import { FeeBadge } from "./fee-badge";
 import { ghost } from "./ghost";
+import { OptionSelect } from "./option-select";
 
 /** Digits-only input value → bounded int or null (empty). */
 const toSize = (raw: string): number | null => {
@@ -35,32 +36,33 @@ function TeamSizeInputs({
   d: Draft;
   set: (patch: Partial<Draft>) => void;
 }) {
-  const field = (key: "teamMin" | "teamMax", label: string) => (
-    <InputGroupInput
-      aria-label={label}
-      inputMode="numeric"
-      placeholder={key === "teamMin" ? "min" : "max"}
-      value={d[key] ?? ""}
-      onChange={(e) => set({ [key]: toSize(e.target.value) })}
-      className="w-8 px-0 text-center text-xs"
-    />
+  const field = (key: "teamMin" | "teamMax", prefix: string, label: string) => (
+    <InputGroup className="h-7 w-20">
+      <InputGroupAddon>
+        <InputGroupText className="text-xs">{prefix}</InputGroupText>
+      </InputGroupAddon>
+      <InputGroupInput
+        aria-label={label}
+        inputMode="numeric"
+        value={d[key] ?? ""}
+        onChange={(e) => set({ [key]: toSize(e.target.value) })}
+        className="text-xs"
+      />
+    </InputGroup>
   );
   return (
-    <InputGroup
-      className="h-6 w-fit"
+    <div
+      className="flex items-center gap-1.5"
       title={`Team size, ${TEAM_MIN}–${TEAM_MAX} members`}
     >
-      {field("teamMin", "Minimum team size")}
-      <InputGroupText className="text-xs">–</InputGroupText>
-      {field("teamMax", "Maximum team size")}
-      <InputGroupAddon align="inline-end">
-        <InputGroupText className="text-xs">members</InputGroupText>
-      </InputGroupAddon>
-    </InputGroup>
+      {field("teamMin", "Min", "Minimum team size")}
+      {field("teamMax", "Max", "Maximum team size")}
+      <span className="text-xs text-muted-foreground">members</span>
+    </div>
   );
 }
 
-const TITLE = "font-serif text-5xl leading-tight text-primary md:text-5xl";
+const TITLE = "font-serif text-5xl leading-tighter text-primary md:text-5xl";
 
 export function EventHeader({
   d,
@@ -95,16 +97,14 @@ export function EventHeader({
       <div className="flex flex-wrap items-center gap-1.5">
         {editing ? (
           <>
-            <BadgeSelect
+            <OptionSelect
               label="Category"
-              variant="secondary"
               value={d.categoryId}
               onChange={(categoryId) => set({ categoryId })}
               options={categories.map((c) => ({ value: c.id, label: c.name }))}
             />
-            <BadgeSelect
+            <OptionSelect
               label="Registration fee"
-              variant="outline"
               value={d.isPaid ? "paid" : "free"}
               onChange={(v) => set({ isPaid: v === "paid" })}
               options={[
@@ -113,14 +113,14 @@ export function EventHeader({
               ]}
             />
             {d.isPaid && (
-              <InputGroup className="h-6 w-32">
+              <InputGroup className="h-7 w-28">
                 <InputGroupAddon>
                   <InputGroupText>₹</InputGroupText>
                 </InputGroupAddon>
                 <InputGroupInput
-                  aria-label="Fee in rupees"
+                  aria-label="Fee in rupees (leave empty if not decided)"
                   inputMode="numeric"
-                  placeholder="Fee (optional)"
+                  placeholder="TBD"
                   value={d.fee ?? ""}
                   onChange={(e) => {
                     const digits = e.target.value.replace(/\D/g, "");
@@ -130,9 +130,8 @@ export function EventHeader({
                 />
               </InputGroup>
             )}
-            <BadgeSelect
+            <OptionSelect
               label="Participation"
-              variant="outline"
               value={d.participation}
               onChange={(participation: Participation) =>
                 set(
@@ -157,9 +156,9 @@ export function EventHeader({
           </>
         ) : (
           <>
-            <Badge variant="secondary">{categoryName}</Badge>
-            <Badge variant="outline">{feeLabel(d.isPaid, d.fee)}</Badge>
-            <Badge variant="outline">
+            <Badge variant="default">{categoryName}</Badge>
+            <FeeBadge isPaid={d.isPaid} fee={d.fee} />
+            <Badge variant="info">
               {participationLabel(d.participation, d.teamMin, d.teamMax)}
             </Badge>
           </>

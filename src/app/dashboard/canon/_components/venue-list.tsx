@@ -5,9 +5,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { VENUE_STATUS_META, VENUE_STATUSES } from "@/lib/canon/constants";
-import { BadgeSelect } from "./badge-select";
 import { type Draft, move, newVenue } from "./draft";
 import { ghost } from "./ghost";
+import { OptionSelect } from "./option-select";
 
 export function VenueList({
   d,
@@ -29,7 +29,7 @@ export function VenueList({
   }
 
   return (
-    <ul className="flex flex-col gap-1.5">
+    <ul className="flex flex-col gap-4">
       {venues.map((v, i) => (
         <li
           key={v.key}
@@ -54,9 +54,8 @@ export function VenueList({
                   "w-36 text-sm text-muted-foreground md:text-sm",
                 )}
               />
-              <BadgeSelect
+              <OptionSelect
                 label="Venue status"
-                variant={VENUE_STATUS_META[v.status].variant}
                 value={v.status}
                 onChange={(status) => update(i, { status })}
                 options={VENUE_STATUSES.map((s) => ({

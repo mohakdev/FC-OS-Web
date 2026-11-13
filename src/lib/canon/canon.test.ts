@@ -7,6 +7,7 @@ import {
   formatRange,
   formatStamp,
   groupEvents,
+  isFeeTbd,
   participationLabel,
   todayIST,
 } from "./format";
@@ -52,8 +53,15 @@ describe("format", () => {
 
   test("feeLabel", () => {
     expect(feeLabel(false, null)).toBe("Free");
-    expect(feeLabel(true, null)).toBe("Paid");
+    expect(feeLabel(true, null)).toBe("Paid · Fee TBD");
     expect(feeLabel(true, 1999)).toBe("Paid · ₹1,999");
+    expect(feeLabel(true, 0)).toBe("Paid · ₹0");
+  });
+
+  test("isFeeTbd", () => {
+    expect(isFeeTbd(true, null)).toBe(true);
+    expect(isFeeTbd(true, 0)).toBe(false);
+    expect(isFeeTbd(false, null)).toBe(false);
   });
 });
 
