@@ -211,3 +211,39 @@ lead = manage their domain's tasks + statuses/priorities/labels; above-leads = f
   `formatDomain`, `isDomainId`, priority/label/due-date helpers, and the status helpers
   `isStatusClosed` / `isCancelledStatus` / `statusFraction` (consumed by `StatusIcon`,
   `kanban-board`, `task-detail-dialog`).
+
+### Canon
+
+The club's **single source of truth** — v1 covers events (spec: `docs/specs/SSOT.md`).
+Routes under `src/app/dashboard/canon/`: index `page.tsx` (cards grouped Ongoing → Upcoming →
+Past by IST date), event page `[id]/page.tsx`, server actions `actions.ts`.
+
+- **Schema** `src/database/schemas/canon_*.ts`: `canon_events` (name ≤80, category, paid +
+  optional ₹ fee, participation `individual|team|both` + team min/max — `canon_events_team_size_check`
+  CHECK: team/both need 2 ≤ min ≤ max ≤ 10, individual has none — short desc, `draft|published`, created/updated at+by), child tables
+  `canon_event_dates` (one row per kind: event/marketing/registration, `date` range +
+  tentative/confirmed), `canon_event_venues` (ordered, optional `days`, status ladder
+  not_booked → unconfirmed → confirmed → booked), `canon_event_spocs`, `canon_event_phases`
+  (markdown body), `canon_categories` (editable list, seeded with 4), `canon_event_revisions`
+  (who/when/which fields — stored for a future History view).
+- **Data layer** `src/utils/canonDbActions.ts`. `saveCanonEvent` replaces the event + child rows
+  in one `db.transaction`, guarded by an **optimistic lock**: the UPDATE matches
+  `date_trunc('milliseconds', updated_at)` against the version the editor loaded, so a
+  concurrent save returns `"stale"` instead of silently overwriting. No-op saves return
+  `"unchanged"` and write no revision.
+- **Authz** `src/lib/canon/permissions.ts`. `canon.event.manage` (HRM/VP/President) counts only
+  when held **globally** (`can`) — create/delete, edit any event, assign SPOCs, categories.
+  `canon.event.edit.own` (every non-read-only role) + being a SPOC on that event = edit +
+  publish, but a SPOC's save keeps the stored SPOC list. Drafts are visible only to managers
+  and the event's SPOCs (hidden drafts 404).
+- **UI** — read view and editor are **one layout** (`_components/event-document.tsx`, `editing`
+  flag); fields are shadcn Input/Textarea with the Canon-only `ghost()` className (no border,
+  no fill). Event flow uses shadcn **Trace** (`src/components/ui/trace.tsx`). Phase bodies
+  render via `react-markdown` (no raw HTML). Status badges use the semantic `success` /
+  `warning` / `info` / `destructive` Badge variants backed by `--success/--warning/--info`
+  tokens in `globals.css` (hue-fixed across themes).
+- **Display** `src/lib/canon/format.ts`: days `DD Mon YYYY` (string-based, no TZ shift), stamps
+  `DD Mon YYYY; hh:mm AM/PM` in IST, relative "x ago" computed server-side at render.
+- **Realtime** — every write emits `notifyRealtime({ scope: "canon" })`; both pages mount
+  `<Refresher scope="canon"/>`. The editor keeps its draft in state, so a refresh never clobbers
+  in-progress edits; it shows a stale warning instead.

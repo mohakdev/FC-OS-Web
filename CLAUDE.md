@@ -8,7 +8,8 @@ FC OS is the **Founders Club operating system** — one Next.js app that houses 
 internal club tool behind a single dashboard and auth/approval gate. Tools live under
 `src/app/dashboard/`: **MoM**, **Attendance Tracker**, **FC TV CMS**, **Performance
 Tracker**, **Member Directory** (approvers edit roles/domains + remove members),
-**Member Requests** (HRM admin), and **Opus** — the PM
+**Member Requests** (HRM admin), **Canon** (the club's single source of truth; v1 =
+event pages, see `### Canon` in `docs/architecture.md`), and **Opus** — the PM
 tool that is the current focus of active development. Users are
 club members.
 
