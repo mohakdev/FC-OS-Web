@@ -67,12 +67,8 @@
           "name": "activity_domain_domains_domain_id_fk",
           "tableFrom": "activity",
           "tableTo": "domains",
-          "columnsFrom": [
-            "domain"
-          ],
-          "columnsTo": [
-            "domain_id"
-          ],
+          "columnsFrom": ["domain"],
+          "columnsTo": ["domain_id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -161,12 +157,8 @@
           "name": "attendance_profile_id_profiles_user_id_fk",
           "tableFrom": "attendance",
           "tableTo": "profiles",
-          "columnsFrom": [
-            "profile_id"
-          ],
-          "columnsTo": [
-            "user_id"
-          ],
+          "columnsFrom": ["profile_id"],
+          "columnsTo": ["user_id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -174,12 +166,8 @@
           "name": "attendance_activity_id_activity_id_fk",
           "tableFrom": "attendance",
           "tableTo": "activity",
-          "columnsFrom": [
-            "activity_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["activity_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         }
@@ -282,12 +270,8 @@
           "name": "account_user_id_user_id_fk",
           "tableFrom": "account",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -360,12 +344,8 @@
           "name": "session_user_id_user_id_fk",
           "tableFrom": "session",
           "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -375,9 +355,7 @@
         "session_token_unique": {
           "name": "session_token_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "token"
-          ]
+          "columns": ["token"]
         }
       },
       "policies": {},
@@ -442,9 +420,7 @@
         "user_email_unique": {
           "name": "user_email_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "email"
-          ]
+          "columns": ["email"]
         }
       },
       "policies": {},
@@ -573,12 +549,8 @@
           "name": "bug_reports_reported_by_profiles_user_id_fk",
           "tableFrom": "bug_reports",
           "tableTo": "profiles",
-          "columnsFrom": [
-            "reported_by"
-          ],
-          "columnsTo": [
-            "user_id"
-          ],
+          "columnsFrom": ["reported_by"],
+          "columnsTo": ["user_id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -586,12 +558,8 @@
           "name": "bug_reports_resolved_by_profiles_user_id_fk",
           "tableFrom": "bug_reports",
           "tableTo": "profiles",
-          "columnsFrom": [
-            "resolved_by"
-          ],
-          "columnsTo": [
-            "user_id"
-          ],
+          "columnsFrom": ["resolved_by"],
+          "columnsTo": ["user_id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -634,9 +602,7 @@
         "canon_categories_name_unique": {
           "name": "canon_categories_name_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "name"
-          ]
+          "columns": ["name"]
         }
       },
       "policies": {},
@@ -694,12 +660,8 @@
           "name": "canon_event_dates_event_id_canon_events_id_fk",
           "tableFrom": "canon_event_dates",
           "tableTo": "canon_events",
-          "columnsFrom": [
-            "event_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["event_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -709,10 +671,7 @@
         "canon_event_dates_event_kind_unique": {
           "name": "canon_event_dates_event_kind_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "event_id",
-            "kind"
-          ]
+          "columns": ["event_id", "kind"]
         }
       },
       "policies": {},
@@ -763,12 +722,8 @@
           "name": "canon_event_phases_event_id_canon_events_id_fk",
           "tableFrom": "canon_event_phases",
           "tableTo": "canon_events",
-          "columnsFrom": [
-            "event_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["event_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -822,12 +777,8 @@
           "name": "canon_event_revisions_event_id_canon_events_id_fk",
           "tableFrom": "canon_event_revisions",
           "tableTo": "canon_events",
-          "columnsFrom": [
-            "event_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["event_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -835,12 +786,8 @@
           "name": "canon_event_revisions_actor_id_profiles_user_id_fk",
           "tableFrom": "canon_event_revisions",
           "tableTo": "profiles",
-          "columnsFrom": [
-            "actor_id"
-          ],
-          "columnsTo": [
-            "user_id"
-          ],
+          "columnsFrom": ["actor_id"],
+          "columnsTo": ["user_id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -881,12 +828,8 @@
           "name": "canon_event_spocs_event_id_canon_events_id_fk",
           "tableFrom": "canon_event_spocs",
           "tableTo": "canon_events",
-          "columnsFrom": [
-            "event_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["event_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -894,12 +837,8 @@
           "name": "canon_event_spocs_profile_id_profiles_user_id_fk",
           "tableFrom": "canon_event_spocs",
           "tableTo": "profiles",
-          "columnsFrom": [
-            "profile_id"
-          ],
-          "columnsTo": [
-            "user_id"
-          ],
+          "columnsFrom": ["profile_id"],
+          "columnsTo": ["user_id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -907,10 +846,7 @@
       "compositePrimaryKeys": {
         "canon_event_spocs_event_id_profile_id_pk": {
           "name": "canon_event_spocs_event_id_profile_id_pk",
-          "columns": [
-            "event_id",
-            "profile_id"
-          ]
+          "columns": ["event_id", "profile_id"]
         }
       },
       "uniqueConstraints": {},
@@ -969,12 +905,8 @@
           "name": "canon_event_venues_event_id_canon_events_id_fk",
           "tableFrom": "canon_event_venues",
           "tableTo": "canon_events",
-          "columnsFrom": [
-            "event_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["event_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1089,12 +1021,8 @@
           "name": "canon_events_category_id_canon_categories_id_fk",
           "tableFrom": "canon_events",
           "tableTo": "canon_categories",
-          "columnsFrom": [
-            "category_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["category_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -1102,12 +1030,8 @@
           "name": "canon_events_created_by_profiles_user_id_fk",
           "tableFrom": "canon_events",
           "tableTo": "profiles",
-          "columnsFrom": [
-            "created_by"
-          ],
-          "columnsTo": [
-            "user_id"
-          ],
+          "columnsFrom": ["created_by"],
+          "columnsTo": ["user_id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         },
@@ -1115,12 +1039,8 @@
           "name": "canon_events_updated_by_profiles_user_id_fk",
           "tableFrom": "canon_events",
           "tableTo": "profiles",
-          "columnsFrom": [
-            "updated_by"
-          ],
-          "columnsTo": [
-            "user_id"
-          ],
+          "columnsFrom": ["updated_by"],
+          "columnsTo": ["user_id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -1193,12 +1113,8 @@
           "name": "opus_labels_domain_domains_domain_id_fk",
           "tableFrom": "opus_labels",
           "tableTo": "domains",
-          "columnsFrom": [
-            "domain"
-          ],
-          "columnsTo": [
-            "domain_id"
-          ],
+          "columnsFrom": ["domain"],
+          "columnsTo": ["domain_id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1260,12 +1176,8 @@
           "name": "opus_priorities_domain_domains_domain_id_fk",
           "tableFrom": "opus_priorities",
           "tableTo": "domains",
-          "columnsFrom": [
-            "domain"
-          ],
-          "columnsTo": [
-            "domain_id"
-          ],
+          "columnsFrom": ["domain"],
+          "columnsTo": ["domain_id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1275,10 +1187,7 @@
         "opus_priorities_domain_name_unique": {
           "name": "opus_priorities_domain_name_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "domain",
-            "name"
-          ]
+          "columns": ["domain", "name"]
         }
       },
       "policies": {},
@@ -1343,12 +1252,8 @@
           "name": "opus_statuses_domain_domains_domain_id_fk",
           "tableFrom": "opus_statuses",
           "tableTo": "domains",
-          "columnsFrom": [
-            "domain"
-          ],
-          "columnsTo": [
-            "domain_id"
-          ],
+          "columnsFrom": ["domain"],
+          "columnsTo": ["domain_id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1358,10 +1263,7 @@
         "opus_statuses_domain_name_unique": {
           "name": "opus_statuses_domain_name_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "domain",
-            "name"
-          ]
+          "columns": ["domain", "name"]
         }
       },
       "policies": {},
@@ -1391,12 +1293,8 @@
           "name": "opus_task_assignees_task_id_opus_tasks_id_fk",
           "tableFrom": "opus_task_assignees",
           "tableTo": "opus_tasks",
-          "columnsFrom": [
-            "task_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["task_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1404,12 +1302,8 @@
           "name": "opus_task_assignees_user_id_profiles_user_id_fk",
           "tableFrom": "opus_task_assignees",
           "tableTo": "profiles",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "user_id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["user_id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1417,10 +1311,7 @@
       "compositePrimaryKeys": {
         "opus_task_assignees_task_id_user_id_pk": {
           "name": "opus_task_assignees_task_id_user_id_pk",
-          "columns": [
-            "task_id",
-            "user_id"
-          ]
+          "columns": ["task_id", "user_id"]
         }
       },
       "uniqueConstraints": {},
@@ -1451,12 +1342,8 @@
           "name": "opus_task_labels_task_id_opus_tasks_id_fk",
           "tableFrom": "opus_task_labels",
           "tableTo": "opus_tasks",
-          "columnsFrom": [
-            "task_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["task_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1464,12 +1351,8 @@
           "name": "opus_task_labels_label_id_opus_labels_id_fk",
           "tableFrom": "opus_task_labels",
           "tableTo": "opus_labels",
-          "columnsFrom": [
-            "label_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["label_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1477,10 +1360,7 @@
       "compositePrimaryKeys": {
         "opus_task_labels_task_id_label_id_pk": {
           "name": "opus_task_labels_task_id_label_id_pk",
-          "columns": [
-            "task_id",
-            "label_id"
-          ]
+          "columns": ["task_id", "label_id"]
         }
       },
       "uniqueConstraints": {},
@@ -1524,12 +1404,8 @@
           "name": "opus_task_links_task_id_opus_tasks_id_fk",
           "tableFrom": "opus_task_links",
           "tableTo": "opus_tasks",
-          "columnsFrom": [
-            "task_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["task_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1628,12 +1504,8 @@
           "name": "opus_tasks_domain_domains_domain_id_fk",
           "tableFrom": "opus_tasks",
           "tableTo": "domains",
-          "columnsFrom": [
-            "domain"
-          ],
-          "columnsTo": [
-            "domain_id"
-          ],
+          "columnsFrom": ["domain"],
+          "columnsTo": ["domain_id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1641,12 +1513,8 @@
           "name": "opus_tasks_parent_task_id_opus_tasks_id_fk",
           "tableFrom": "opus_tasks",
           "tableTo": "opus_tasks",
-          "columnsFrom": [
-            "parent_task_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["parent_task_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1654,12 +1522,8 @@
           "name": "opus_tasks_status_id_opus_statuses_id_fk",
           "tableFrom": "opus_tasks",
           "tableTo": "opus_statuses",
-          "columnsFrom": [
-            "status_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["status_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -1667,12 +1531,8 @@
           "name": "opus_tasks_priority_id_opus_priorities_id_fk",
           "tableFrom": "opus_tasks",
           "tableTo": "opus_priorities",
-          "columnsFrom": [
-            "priority_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["priority_id"],
+          "columnsTo": ["id"],
           "onDelete": "restrict",
           "onUpdate": "no action"
         },
@@ -1680,12 +1540,8 @@
           "name": "opus_tasks_created_by_profiles_user_id_fk",
           "tableFrom": "opus_tasks",
           "tableTo": "profiles",
-          "columnsFrom": [
-            "created_by"
-          ],
-          "columnsTo": [
-            "user_id"
-          ],
+          "columnsFrom": ["created_by"],
+          "columnsTo": ["user_id"],
           "onDelete": "set null",
           "onUpdate": "no action"
         }
@@ -1809,23 +1665,17 @@
         "profiles_auth_user_id_unique": {
           "name": "profiles_auth_user_id_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "auth_user_id"
-          ]
+          "columns": ["auth_user_id"]
         },
         "profiles_email_unique": {
           "name": "profiles_email_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "email"
-          ]
+          "columns": ["email"]
         },
         "profiles_phone_unique": {
           "name": "profiles_phone_unique",
           "nullsNotDistinct": false,
-          "columns": [
-            "phone"
-          ]
+          "columns": ["phone"]
         }
       },
       "policies": {},
@@ -1856,12 +1706,8 @@
           "name": "role_permissions_role_id_roles_role_id_fk",
           "tableFrom": "role_permissions",
           "tableTo": "roles",
-          "columnsFrom": [
-            "role_id"
-          ],
-          "columnsTo": [
-            "role_id"
-          ],
+          "columnsFrom": ["role_id"],
+          "columnsTo": ["role_id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1869,12 +1715,8 @@
           "name": "role_permissions_permission_id_permissions_permission_id_fk",
           "tableFrom": "role_permissions",
           "tableTo": "permissions",
-          "columnsFrom": [
-            "permission_id"
-          ],
-          "columnsTo": [
-            "permission_id"
-          ],
+          "columnsFrom": ["permission_id"],
+          "columnsTo": ["permission_id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1882,10 +1724,7 @@
       "compositePrimaryKeys": {
         "role_permissions_role_id_permission_id_pk": {
           "name": "role_permissions_role_id_permission_id_pk",
-          "columns": [
-            "role_id",
-            "permission_id"
-          ]
+          "columns": ["role_id", "permission_id"]
         }
       },
       "uniqueConstraints": {},
@@ -1953,12 +1792,8 @@
           "name": "user_roles_user_id_profiles_user_id_fk",
           "tableFrom": "user_roles",
           "tableTo": "profiles",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "user_id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["user_id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1966,12 +1801,8 @@
           "name": "user_roles_role_roles_role_id_fk",
           "tableFrom": "user_roles",
           "tableTo": "roles",
-          "columnsFrom": [
-            "role"
-          ],
-          "columnsTo": [
-            "role_id"
-          ],
+          "columnsFrom": ["role"],
+          "columnsTo": ["role_id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1979,12 +1810,8 @@
           "name": "user_roles_domain_domains_domain_id_fk",
           "tableFrom": "user_roles",
           "tableTo": "domains",
-          "columnsFrom": [
-            "domain"
-          ],
-          "columnsTo": [
-            "domain_id"
-          ],
+          "columnsFrom": ["domain"],
+          "columnsTo": ["domain_id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -2000,99 +1827,57 @@
     "public.type": {
       "name": "type",
       "schema": "public",
-      "values": [
-        "Meeting",
-        "Event",
-        "C2C",
-        "Help Desk"
-      ]
+      "values": ["Meeting", "Event", "C2C", "Help Desk"]
     },
     "public.attendance_status": {
       "name": "attendance_status",
       "schema": "public",
-      "values": [
-        "Present",
-        "Absent"
-      ]
+      "values": ["Present", "Absent"]
     },
     "public.bug_report_status": {
       "name": "bug_report_status",
       "schema": "public",
-      "values": [
-        "open",
-        "fixed"
-      ]
+      "values": ["open", "fixed"]
     },
     "public.canon_date_kind": {
       "name": "canon_date_kind",
       "schema": "public",
-      "values": [
-        "event",
-        "marketing",
-        "registration"
-      ]
+      "values": ["event", "marketing", "registration"]
     },
     "public.canon_date_status": {
       "name": "canon_date_status",
       "schema": "public",
-      "values": [
-        "tentative",
-        "confirmed"
-      ]
+      "values": ["tentative", "confirmed"]
     },
     "public.canon_venue_status": {
       "name": "canon_venue_status",
       "schema": "public",
-      "values": [
-        "not_booked",
-        "unconfirmed",
-        "confirmed",
-        "booked"
-      ]
+      "values": ["not_booked", "unconfirmed", "confirmed", "booked"]
     },
     "public.canon_event_status": {
       "name": "canon_event_status",
       "schema": "public",
-      "values": [
-        "draft",
-        "published"
-      ]
+      "values": ["draft", "published"]
     },
     "public.canon_participation": {
       "name": "canon_participation",
       "schema": "public",
-      "values": [
-        "individual",
-        "team",
-        "both"
-      ]
+      "values": ["individual", "team", "both"]
     },
     "public.domain": {
       "name": "domain",
       "schema": "public",
-      "values": [
-        "technical",
-        "creatives",
-        "operations",
-        "outreach"
-      ]
+      "values": ["technical", "creatives", "operations", "outreach"]
     },
     "public.gender": {
       "name": "gender",
       "schema": "public",
-      "values": [
-        "male",
-        "female"
-      ]
+      "values": ["male", "female"]
     },
     "public.profile_status": {
       "name": "profile_status",
       "schema": "public",
-      "values": [
-        "pending_approval",
-        "approved",
-        "rejected"
-      ]
+      "values": ["pending_approval", "approved", "rejected"]
     },
     "public.role_label": {
       "name": "role_label",
@@ -2113,10 +1898,7 @@
     "public.scope": {
       "name": "scope",
       "schema": "public",
-      "values": [
-        "domain",
-        "global"
-      ]
+      "values": ["domain", "global"]
     }
   },
   "schemas": {},
