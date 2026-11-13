@@ -22,7 +22,12 @@ export function ProfileAvatar({
 }) {
   const initials = `${firstName[0] ?? ""}${lastName[0] ?? ""}`.toUpperCase();
   return (
-    <Avatar className={className}>
+    // Keyed on the version so the Radix Root remounts whenever the picture
+    // changes. Radix keeps the image status in Root state and `AvatarImage`
+    // never resets it on unmount, so without a fresh Root a removed picture
+    // leaves status "loaded" forever: no <img>, and the fallback (which only
+    // renders when status !== "loaded") stays hidden — an empty circle.
+    <Avatar key={avatarVersion ?? "none"} className={className}>
       {avatarVersion !== null ? (
         <AvatarImage
           src={`/api/avatar/${userId}?v=${avatarVersion}`}
