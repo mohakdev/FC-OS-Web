@@ -13,15 +13,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { DOMAIN_LABELS as DOMAIN_LABEL_MAP } from "@/lib/validation/onboarding";
 import type { PendingMember } from "@/utils/dbActions";
 import { decideMember } from "./actions";
 
-const DOMAIN_LABELS: Record<string, string> = {
-  technical: "Technical",
-  creatives: "Creatives",
-  operations: "Operations & Marketing",
-  outreach: "Outreach",
-};
+// Widened so arbitrary domain strings index safely (falls back to the raw id).
+const DOMAIN_LABELS: Record<string, string> = DOMAIN_LABEL_MAP;
 
 const ROLES = [
   "member",

@@ -15,15 +15,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-import { DOMAIN_IDS } from "@/lib/validation/onboarding";
+import { DOMAIN_IDS, DOMAIN_LABELS } from "@/lib/validation/onboarding";
 import { submitOnboarding } from "./actions";
-
-const DOMAIN_LABELS: Record<(typeof DOMAIN_IDS)[number], string> = {
-  technical: "Technical",
-  creatives: "Creatives",
-  operations: "Operations & Marketing",
-  outreach: "Outreach",
-};
 
 const GENDERS = [
   { value: "male", label: "Male" },

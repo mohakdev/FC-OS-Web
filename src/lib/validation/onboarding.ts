@@ -37,6 +37,13 @@ export const DOMAIN_IDS = [
   "outreach",
 ] as const;
 
+export const DOMAIN_LABELS: Record<(typeof DOMAIN_IDS)[number], string> = {
+  technical: "Technical",
+  creatives: "Creatives",
+  operations: "Operations & Marketing",
+  outreach: "Outreach",
+};
+
 export const onboardingSchema = z.object({
   firstName: z.string().trim().min(1, "First name is required"),
   lastName: z.string().trim().min(1, "Last name is required"),
