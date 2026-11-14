@@ -434,6 +434,19 @@ export const getAvatarKey = async (profileId: string) => {
   return row?.key ?? null;
 };
 
+/** The member's avatar cache-buster (null = no picture), for the sidebar. */
+export const getAvatarVersion = async (profileId: string) => {
+  const [row] = await db
+    .select({
+      key: profileDetails.avatarKey,
+      updatedAt: profileDetails.avatarUpdatedAt,
+    })
+    .from(profileDetails)
+    .where(eq(profileDetails.userId, profileId))
+    .limit(1);
+  return row ? avatarVersion(row.key, row.updatedAt) : null;
+};
+
 /**
  * Points a profile at a new avatar object (or none, with `key = null`).
  * Returns the previous key so the caller can delete the old object.

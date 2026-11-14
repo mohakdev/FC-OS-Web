@@ -18,7 +18,7 @@ import { allPermissions, can, canAny } from "@/lib/auth/permissions";
 import { getRoleScopes, holdsSuperadmin } from "@/lib/auth/roles";
 import { isDomainId } from "@/lib/opus/format";
 import { manageableDomains } from "@/lib/opus/permissions";
-import { getPendingMembersFor } from "@/utils/dbActions";
+import { getAvatarVersion, getPendingMembersFor } from "@/utils/dbActions";
 
 export const metadata: Metadata = {
   title: "FC OS • Dashboard",
@@ -53,6 +53,8 @@ export default async function RootLayout({
     // Badge only (identity, not authority): read the REAL role, so it stays
     // put while "view as" narrows ctx.roleIds to the switched role.
     isSuperadmin: await holdsSuperadmin(state.ctx.userId),
+    avatarVersion: await getAvatarVersion(state.ctx.userId),
+    userId: state.ctx.userId,
   };
   // Sidebar badge. Re-runs on every realtime `router.refresh()`, so it stays live.
   const pendingRequests = canAny(state.ctx.grants, "member.approve")

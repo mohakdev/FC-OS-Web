@@ -17,7 +17,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
   DropdownMenu,
@@ -48,6 +48,9 @@ export type NavUserData = {
   email: string;
   domainIds: DomainId[];
   isSuperadmin: boolean;
+  userId: string;
+  /** Avatar cache-buster; null = no picture (initials). */
+  avatarVersion: number | null;
 };
 
 function getInitials(name: string) {
@@ -56,6 +59,32 @@ function getInitials(name: string) {
   const first = parts[0]?.[0] ?? "";
   const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? "") : "";
   return (first + last).toUpperCase() || "FC";
+}
+
+// Same remount-on-version trick as ProfileAvatar: Radix keeps "loaded" in
+// Root state, so a removed picture needs a fresh Root to show initials.
+function UserAvatar({
+  userId,
+  name,
+  initials,
+  avatarVersion,
+}: {
+  userId: string;
+  name: string;
+  initials: string;
+  avatarVersion: number | null;
+}) {
+  return (
+    <Avatar key={avatarVersion ?? "none"}>
+      {avatarVersion !== null ? (
+        <AvatarImage
+          src={`/api/avatar/${userId}?v=${avatarVersion}`}
+          alt={name}
+        />
+      ) : null}
+      <AvatarFallback>{initials}</AvatarFallback>
+    </Avatar>
+  );
 }
 
 function DomainBadge({ domain }: { domain: DomainId }) {
@@ -86,7 +115,14 @@ function DomainSummary({ domainIds }: { domainIds: DomainId[] }) {
   );
 }
 
-export function NavUser({ name, email, domainIds, isSuperadmin }: NavUserData) {
+export function NavUser({
+  name,
+  email,
+  domainIds,
+  isSuperadmin,
+  userId,
+  avatarVersion,
+}: NavUserData) {
   const { isMobile } = useSidebar();
   const router = useRouter();
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -119,9 +155,12 @@ export function NavUser({ name, email, domainIds, isSuperadmin }: NavUserData) {
               className="h-14 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
             >
               <DropdownMenuTrigger>
-                <Avatar>
-                  <AvatarFallback>{initials}</AvatarFallback>
-                </Avatar>
+                <UserAvatar
+                  userId={userId}
+                  name={name}
+                  initials={initials}
+                  avatarVersion={avatarVersion}
+                />
                 <span className="flex min-w-0 flex-1 flex-col gap-1 text-left">
                   <span className="truncate font-serif text-base leading-tight">
                     {name}
@@ -144,9 +183,12 @@ export function NavUser({ name, email, domainIds, isSuperadmin }: NavUserData) {
             >
               <DropdownMenuLabel className="p-0 font-normal">
                 <div className="flex items-center gap-2 px-1.5 py-1.5 text-left">
-                  <Avatar>
-                    <AvatarFallback>{initials}</AvatarFallback>
-                  </Avatar>
+                  <UserAvatar
+                    userId={userId}
+                    name={name}
+                    initials={initials}
+                    avatarVersion={avatarVersion}
+                  />
                   <div className="grid min-w-0 flex-1 leading-tight">
                     <span className="truncate font-serif text-base text-foreground">
                       {name}
