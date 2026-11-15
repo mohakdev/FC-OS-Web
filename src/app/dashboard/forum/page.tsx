@@ -4,7 +4,7 @@ import { Refresher } from "@/components/realtime/refresher";
 import { Button } from "@/components/ui/button";
 import { getAccessContext } from "@/lib/auth/context";
 import { canCreateAny, createOptions } from "@/lib/forum/permissions";
-import { expectedDomains, listEvents } from "@/utils/forumDbActions";
+import { getForumViewer, listEvents } from "@/utils/forumDbActions";
 import { EventList } from "./_components/event-list";
 import { MeetingDialog } from "./_components/meeting-dialog";
 
@@ -14,9 +14,9 @@ export default async function ForumPage() {
   const ctx = await getAccessContext();
   if (!ctx) redirect("/login");
 
-  const [events, myDomains] = await Promise.all([
+  const [events, viewer] = await Promise.all([
     listEvents(),
-    expectedDomains(ctx),
+    getForumViewer(ctx),
   ]);
   const options = createOptions(ctx);
 
@@ -51,7 +51,7 @@ export default async function ForumPage() {
           endsAt: e.endsAt,
           status: e.status,
         }))}
-        myDomains={myDomains}
+        viewer={viewer}
       />
     </div>
   );

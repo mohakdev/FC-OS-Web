@@ -1,7 +1,7 @@
 // Forum display + time helpers. Pure and client-safe. Times are shown and
 // entered in IST (`FORUM_TZ`); storage is timestamptz.
 
-import { formatDomain } from "@/lib/opus/format";
+import { type DomainId, formatDomain } from "@/lib/opus/format";
 import {
   FORUM_TZ,
   FORUM_UTC_OFFSET,
@@ -69,12 +69,57 @@ export function formatWhen(startsAt: Date, endsAt: Date | null): string {
     : `${start} – ${formatDate(endsAt)} · ${formatTime(endsAt)}`;
 }
 
-/** `"Technical meeting"`, `"Full-team meeting"`. */
+/**
+ * `"Technical meeting"`, `"Full-team meeting"`, `"Associate-leads meeting"`
+ * (every domain) or `"Creatives associate-leads meeting"` (one domain).
+ */
 export function kindLabel(kind: MeetingKind, domain: string | null): string {
   if (kind === "domain_meeting" && domain) {
     return `${formatDomain(domain)} meeting`;
   }
+  if (kind === "assoc_leads_meeting" && domain) {
+    return `${formatDomain(domain)} associate-leads meeting`;
+  }
   return MEETING_KIND_LABELS[kind];
+}
+
+/** What a viewer is expected at — built server-side by `getForumViewer`. */
+export type ForumViewer = {
+  /** Holds any granting, non-superadmin role (read-only roles don't count). */
+  member: boolean;
+  /** Holds a granting global role (president / VP / HRM). */
+  leadership: boolean;
+  /** Domains the viewer belongs to through a granting role. */
+  domains: DomainId[];
+  /** Domains where the viewer is an associate lead. */
+  assocDomains: DomainId[];
+};
+
+/**
+ * Is this viewer in the meeting's audience? Mirrors `getEventAudience`
+ * (utils/forumDbActions.ts) for the list's "My meetings" filter.
+ */
+export function isExpected(
+  event: { kind: MeetingKind; domain: string | null },
+  v: ForumViewer,
+): boolean {
+  if (!v.member) return false;
+  switch (event.kind) {
+    case "club_meeting":
+      return true;
+    case "domain_meeting":
+      return (
+        v.leadership ||
+        (event.domain !== null && v.domains.some((d) => d === event.domain))
+      );
+    case "assoc_leads_meeting":
+      return (
+        v.leadership ||
+        (event.domain === null
+          ? v.assocDomains.length > 0
+          : v.assocDomains.some((d) => d === event.domain))
+      );
+  }
 }
 
 /**

@@ -9,19 +9,22 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { splitByTime } from "@/lib/forum/format";
+import { type ForumViewer, isExpected, splitByTime } from "@/lib/forum/format";
 import { DOMAIN_IDS, formatDomain } from "@/lib/opus/format";
 import { EventCard, type EventCardData } from "./event-card";
 
-/** "mine" = meetings I'm expected at; "club" = full-team; else a domain. */
-type Filter = "mine" | "all" | "club" | (typeof DOMAIN_IDS)[number];
+/**
+ * "mine" = meetings I'm expected at; "club" = full-team; "assoc" = associate-
+ * leads meetings; else a domain's meetings.
+ */
+type Filter = "mine" | "all" | "club" | "assoc" | (typeof DOMAIN_IDS)[number];
 
 export function EventList({
   events,
-  myDomains,
+  viewer,
 }: {
   events: EventCardData[];
-  myDomains: string[];
+  viewer: ForumViewer;
 }) {
   const [filter, setFilter] = useState<Filter>("mine");
 
@@ -31,18 +34,17 @@ export function EventList({
         case "all":
           return true;
         case "mine":
-          return (
-            e.kind === "club_meeting" ||
-            (e.domain !== null && myDomains.includes(e.domain))
-          );
+          return isExpected(e, viewer);
         case "club":
           return e.kind === "club_meeting";
+        case "assoc":
+          return e.kind === "assoc_leads_meeting";
         default:
-          return e.domain === filter;
+          return e.kind === "domain_meeting" && e.domain === filter;
       }
     };
     return splitByTime(events.filter(matches));
-  }, [events, filter, myDomains]);
+  }, [events, filter, viewer]);
 
   const grid = (list: EventCardData[], empty: string) =>
     list.length === 0 ? (
@@ -76,6 +78,7 @@ export function EventList({
             <SelectItem value="mine">My meetings</SelectItem>
             <SelectItem value="all">Everything</SelectItem>
             <SelectItem value="club">Full-team meetings</SelectItem>
+            <SelectItem value="assoc">Associate-leads meetings</SelectItem>
             {DOMAIN_IDS.map((d) => (
               <SelectItem key={d} value={d}>
                 {formatDomain(d)} meetings

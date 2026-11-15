@@ -10,6 +10,7 @@ import {
 import type { MeetingKind } from "@/lib/forum/constants";
 import {
   canManageEvent,
+  FORUM_ASSOC_MANAGE,
   FORUM_CLUB_MANAGE,
   FORUM_DOMAIN_MANAGE,
 } from "@/lib/forum/permissions";
@@ -56,6 +57,9 @@ function mailLater(eventId: string, kind: "invite" | "update" | "cancel") {
  * Signed in + approved + allowed to manage events of this kind/domain, via the
  * standard guards (so view-as writes are logged like everywhere else):
  *   club_meeting   → `requireGlobalWriteAccess` — org-wide, no domain to narrow to
+ *   assoc_leads_meeting → every domain: `requireGlobalWriteAccess` (leadership);
+ *                    one domain: `requireWriteAccess` + `canIn` (that domain's lead
+ *                    or leadership)
  *   domain_meeting → `requireWriteAccess` precheck, then `canIn` for THAT domain
  */
 async function requireEventManager(event: {
@@ -65,7 +69,14 @@ async function requireEventManager(event: {
   if (event.kind === "club_meeting") {
     return requireGlobalWriteAccess(FORUM_CLUB_MANAGE);
   }
-  const ctx = await requireWriteAccess(FORUM_DOMAIN_MANAGE);
+  if (event.kind === "assoc_leads_meeting" && event.domain === null) {
+    return requireGlobalWriteAccess(FORUM_ASSOC_MANAGE);
+  }
+  const ctx = await requireWriteAccess(
+    event.kind === "assoc_leads_meeting"
+      ? FORUM_ASSOC_MANAGE
+      : FORUM_DOMAIN_MANAGE,
+  );
   if ("error" in ctx) return ctx;
   if (!canManageEvent(ctx, event)) {
     return { error: "You can only manage meetings of your own domain." };

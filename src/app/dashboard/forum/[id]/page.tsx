@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/table";
 import { getAccessContext } from "@/lib/auth/context";
 import { ago, formatStamp } from "@/lib/canon/format";
+import { KIND_BADGE } from "@/lib/forum/constants";
 import { formatWhen, kindLabel } from "@/lib/forum/format";
 import { canManageEvent } from "@/lib/forum/permissions";
 import {
@@ -95,7 +96,7 @@ export default async function ForumEventPage({
           )}
         </div>
         <div className="flex flex-wrap gap-1">
-          <Badge variant={event.kind === "club_meeting" ? "default" : "info"}>
+          <Badge variant={KIND_BADGE[event.kind]}>
             {kindLabel(event.kind, event.domain)}
           </Badge>
           {!scheduled && <Badge variant="destructive">Cancelled</Badge>}

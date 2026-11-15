@@ -1,7 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import type { Grants } from "@/lib/auth/permissions";
 import {
+  type ForumViewer,
   formatWhen,
+  isExpected,
   istToDate,
   kindLabel,
   splitByTime,
@@ -17,11 +19,14 @@ const g = (global: string[], byDomain: Grants["byDomain"] = {}): Grants => ({
   byDomain,
 });
 
-// Shapes the seed produces: leads hold forum.domain.manage via a domain role,
-// leadership holds both Forum permissions via global roles.
-const creativesLead = { grants: g([], { creatives: ["forum.domain.manage"] }) };
+// Shapes the seed produces: lead tiers (lead / co-lead / associate lead) hold
+// forum.domain.manage + forum.assoc.manage via a domain-scoped role, leadership
+// holds every Forum permission via global roles.
+const creativesLead = {
+  grants: g([], { creatives: ["forum.domain.manage", "forum.assoc.manage"] }),
+};
 const president = {
-  grants: g(["forum.domain.manage", "forum.club.manage"]),
+  grants: g(["forum.domain.manage", "forum.club.manage", "forum.assoc.manage"]),
 };
 const member = { grants: g([], { technical: ["opus.task.status.own"] }) };
 const readOnly = { grants: g([]) };
@@ -72,12 +77,39 @@ describe("permissions", () => {
     ).toBe(false);
   });
 
-  test("create options follow the grants", () => {
-    expect(createOptions(creativesLead)).toEqual({
+  test("a lead tier calls only their own domain's associate-leads meeting", () => {
+    const creativesHead = creativesLead;
+    const assoc = (domain: string | null) => ({
+      kind: "assoc_leads_meeting" as const,
+      domain,
+    });
+    expect(canManageEvent(creativesHead, assoc("creatives"))).toBe(true);
+    expect(canManageEvent(creativesHead, assoc("technical"))).toBe(false);
+    // Every domain's associate leads needs the grant org-wide.
+    expect(canManageEvent(creativesHead, assoc(null))).toBe(false);
+    expect(createOptions(creativesHead)).toEqual({
       club: false,
+      assocAll: false,
+      assocDomains: ["creatives"],
       domains: ["creatives"],
     });
+
+    // A domain grant without forum.assoc.manage (e.g. if unticked in the grid).
+    const domainOnly = {
+      grants: g([], { creatives: ["forum.domain.manage"] }),
+    };
+    expect(canManageEvent(domainOnly, assoc("creatives"))).toBe(false);
+
+    // Leadership: every variant.
+    for (const d of [null, "technical", "outreach"]) {
+      expect(canManageEvent(president, assoc(d))).toBe(true);
+    }
+  });
+
+  test("create options follow the grants", () => {
     expect(createOptions(president).club).toBe(true);
+    expect(createOptions(president).assocAll).toBe(true);
+    expect(createOptions(president).assocDomains).toHaveLength(4);
     expect(createOptions(president).domains).toHaveLength(4);
     expect(canCreateAny(createOptions(member))).toBe(false);
     expect(canCreateAny(createOptions(readOnly))).toBe(false);
@@ -146,6 +178,77 @@ describe("meetingInputSchema", () => {
   });
 });
 
+describe("associate-leads meetings", () => {
+  test("domain is optional", () => {
+    expect(
+      meetingInputSchema.safeParse({
+        ...valid,
+        kind: "assoc_leads_meeting",
+        domain: null,
+      }).success,
+    ).toBe(true);
+    expect(
+      meetingInputSchema.safeParse({
+        ...valid,
+        kind: "assoc_leads_meeting",
+        domain: "creatives",
+      }).success,
+    ).toBe(true);
+  });
+
+  const viewer = (v: Partial<ForumViewer>): ForumViewer => ({
+    member: true,
+    leadership: false,
+    domains: [],
+    assocDomains: [],
+    ...v,
+  });
+  const allAssoc = { kind: "assoc_leads_meeting" as const, domain: null };
+  const techAssoc = {
+    kind: "assoc_leads_meeting" as const,
+    domain: "technical",
+  };
+
+  test("isExpected: associate leads, by domain", () => {
+    const techAl = viewer({
+      domains: ["technical"],
+      assocDomains: ["technical"],
+    });
+    expect(isExpected(allAssoc, techAl)).toBe(true);
+    expect(isExpected(techAssoc, techAl)).toBe(true);
+    expect(
+      isExpected({ kind: "assoc_leads_meeting", domain: "creatives" }, techAl),
+    ).toBe(false);
+  });
+
+  test("isExpected: leadership everywhere, plain members not", () => {
+    const prez = viewer({ leadership: true });
+    expect(isExpected(allAssoc, prez)).toBe(true);
+    expect(isExpected(techAssoc, prez)).toBe(true);
+    expect(
+      isExpected({ kind: "domain_meeting", domain: "outreach" }, prez),
+    ).toBe(true);
+
+    const techMember = viewer({ domains: ["technical"] });
+    expect(isExpected(allAssoc, techMember)).toBe(false);
+    expect(isExpected(techAssoc, techMember)).toBe(false);
+    expect(
+      isExpected({ kind: "domain_meeting", domain: "technical" }, techMember),
+    ).toBe(true);
+    expect(isExpected({ kind: "club_meeting", domain: null }, techMember)).toBe(
+      true,
+    );
+  });
+
+  test("isExpected: read-only viewers are never expected", () => {
+    const alumni = viewer({ member: false });
+    expect(isExpected({ kind: "club_meeting", domain: null }, alumni)).toBe(
+      false,
+    );
+    expect(isExpected(allAssoc, alumni)).toBe(false);
+  });
+});
+
 describe("format", () => {
   test("IST round-trips", () => {
     const at = istToDate("2026-11-18", "00:15");
@@ -171,6 +274,12 @@ describe("format", () => {
   test("kindLabel", () => {
     expect(kindLabel("domain_meeting", "creatives")).toBe("Creatives meeting");
     expect(kindLabel("club_meeting", null)).toBe("Full-team meeting");
+    expect(kindLabel("assoc_leads_meeting", null)).toBe(
+      "Associate-leads meeting",
+    );
+    expect(kindLabel("assoc_leads_meeting", "outreach")).toBe(
+      "Outreach associate-leads meeting",
+    );
   });
 
   test("splitByTime uses the end, and sorts each side", () => {

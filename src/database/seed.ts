@@ -69,10 +69,16 @@ const CANON_SPOC: PermissionId[] = ["canon.event.edit.own"];
 
 // Forum: domain leads run their own domain's meetings (scope narrows it);
 // leadership runs full-team meetings and, via its global roles, every domain's.
-const FORUM_DOMAIN: PermissionId[] = ["forum.domain.manage"];
+// Lead tiers run their own domain's meetings and its associate-leads meetings
+// (domain-scoped roles, so only their own domain).
+const FORUM_DOMAIN: PermissionId[] = [
+  "forum.domain.manage",
+  "forum.assoc.manage",
+];
 const FORUM_LEADERSHIP: PermissionId[] = [
   "forum.domain.manage",
   "forum.club.manage",
+  "forum.assoc.manage",
 ];
 
 const APPROVER: PermissionId[] = [

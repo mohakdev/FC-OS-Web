@@ -9,6 +9,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import type { EventStatus, MeetingKind } from "@/lib/forum/constants";
+import { KIND_BADGE } from "@/lib/forum/constants";
 import { formatWhen, kindLabel } from "@/lib/forum/format";
 import { cn } from "@/lib/utils";
 
@@ -43,7 +44,7 @@ export function EventCard({ event }: { event: EventCardData }) {
             {event.title}
           </CardTitle>
           <CardDescription className="mt-1 flex flex-wrap gap-1">
-            <Badge variant={event.kind === "club_meeting" ? "default" : "info"}>
+            <Badge variant={KIND_BADGE[event.kind]}>
               {kindLabel(event.kind, event.domain)}
             </Badge>
             {cancelled && <Badge variant="destructive">Cancelled</Badge>}

@@ -16,11 +16,14 @@ import { profiles } from "./profiles";
 // Forum is for INTERNAL club meetings only — external events live in Canon.
 // The kind (+ `domain`) decides who is expected; the audience is derived on
 // read, never stored (see `getEventAudience` in utils/forumDbActions.ts):
-//   domain_meeting → members of `domain` + leadership
-//   club_meeting   → every approved, non-read-only member ("full-team meet")
+//   domain_meeting      → members of `domain` + leadership
+//   club_meeting        → every approved, non-read-only member ("full-team meet")
+//   assoc_leads_meeting → associate leads (of `domain`, or of every domain when
+//                         it is null) + leadership
 export const forumEventKindEnum = pgEnum("forum_event_kind", [
   "domain_meeting",
   "club_meeting",
+  "assoc_leads_meeting",
 ]);
 
 export const forumEventStatusEnum = pgEnum("forum_event_status", [
@@ -35,7 +38,8 @@ export const forumEvents = pgTable(
   {
     id: uuid("id").defaultRandom().primaryKey(),
     kind: forumEventKindEnum("kind").notNull(),
-    // Set iff kind = domain_meeting (CHECK below).
+    // Required for domain_meeting, forbidden for club_meeting, optional for
+    // assoc_leads_meeting (null = every domain). CHECK below.
     domain: domainsEnum("domain").references(() => domains.id, {
       onDelete: "restrict",
     }),
@@ -62,9 +66,12 @@ export const forumEvents = pgTable(
       .notNull(),
   },
   (t) => [
+    // Phrased without naming 'assoc_leads_meeting': Postgres forbids using an
+    // enum value in the same transaction that added it, and prod migrations
+    // run in one transaction (scripts/prod-db.sh sql).
     check(
       "forum_events_domain_kind_check",
-      sql`(${t.kind} = 'domain_meeting') = (${t.domain} IS NOT NULL)`,
+      sql`NOT (${t.kind} = 'domain_meeting' AND ${t.domain} IS NULL) AND NOT (${t.kind} = 'club_meeting' AND ${t.domain} IS NOT NULL)`,
     ),
     check(
       "forum_events_time_order_check",

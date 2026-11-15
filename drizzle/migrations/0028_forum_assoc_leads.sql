@@ -1,0 +1,3 @@
+ALTER TYPE "public"."forum_event_kind" ADD VALUE 'assoc_leads_meeting';--> statement-breakpoint
+ALTER TABLE "forum_events" DROP CONSTRAINT "forum_events_domain_kind_check";--> statement-breakpoint
+ALTER TABLE "forum_events" ADD CONSTRAINT "forum_events_domain_kind_check" CHECK (NOT ("forum_events"."kind" = 'domain_meeting' AND "forum_events"."domain" IS NULL) AND NOT ("forum_events"."kind" = 'club_meeting' AND "forum_events"."domain" IS NOT NULL));

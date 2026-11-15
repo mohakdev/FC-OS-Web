@@ -47,14 +47,20 @@ export const meetingInputSchema = z
     notify: z.boolean().default(true),
   })
   .superRefine((v, ctx) => {
-    if ((v.kind === "domain_meeting") !== (v.domain !== null)) {
+    // domain_meeting needs a domain, club_meeting has none, and an
+    // associate-leads meeting may go either way (one domain, or all of them).
+    if (v.kind === "domain_meeting" && v.domain === null) {
       ctx.addIssue({
         code: "custom",
         path: ["domain"],
-        message:
-          v.kind === "domain_meeting"
-            ? "Pick the domain this meeting is for."
-            : "A full-team meeting has no domain.",
+        message: "Pick the domain this meeting is for.",
+      });
+    }
+    if (v.kind === "club_meeting" && v.domain !== null) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["domain"],
+        message: "A full-team meeting has no domain.",
       });
     }
     const start = istToDate(v.date, v.startTime);

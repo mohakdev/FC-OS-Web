@@ -246,8 +246,8 @@ real grants (`intersectGrants`) so a switch can only narrow. `realGrants` (switc
 
 ### Forum
 
-Internal club meetings at `/dashboard/forum`: domain meetings and full-team meetings, with
-email invites. **Forum is internal-only.** External events (Ideathon, Hackathon, InterClub,
+Internal club meetings at `/dashboard/forum`: domain meetings, full-team meetings and
+associate-leads meetings, with email invites. **Forum is internal-only.** External events (Ideathon, Hackathon, InterClub,
 …) are planned in **Canon** (`### Canon`), which already has its own categories, and the two
 tools are not linked. When the Attendance Tracker is built, meeting attendance will reference
 `forum_events`. Everything follows the tool-prefix convention: tables / enums `forum_*`,
@@ -255,30 +255,40 @@ permissions `forum.*`, code in `src/lib/forum/` + `src/utils/forumDbActions.ts`,
 scope `forum`.
 
 - **Schema** `src/database/schemas/forum_events.ts`: `forum_events` (`kind` =
-  `domain_meeting | club_meeting`, `domain` set **iff** domain meeting — CHECK
-  `forum_events_domain_kind_check`; title ≤80, description, venue, `starts_at` (required) /
-  `ends_at` timestamptz with `ends_at > starts_at`, `status` `scheduled | cancelled`,
-  `revision`, created/updated at+by). `revision` bumps on every change the audience should
-  hear about (title, time, venue, cancel) and is the iCalendar SEQUENCE.
+  `domain_meeting | club_meeting | assoc_leads_meeting`; `domain` required for a domain
+  meeting, forbidden for a full-team one, optional for an associate-leads one (null = every
+  domain) — CHECK `forum_events_domain_kind_check`, phrased without naming
+  `assoc_leads_meeting` because Postgres won't use a just-added enum value in the same
+  transaction and prod migrations run in one; title ≤80, description, venue, `starts_at`
+  (required) / `ends_at` timestamptz with `ends_at > starts_at`, `status`
+  `scheduled | cancelled`, `revision`, created/updated at+by). `revision` bumps on every change
+  the audience should hear about (title, time, venue, cancel) and is the iCalendar SEQUENCE.
   `forum_invites.ts`: a log of sent mail, PK `(event_id, profile_id, kind, revision)`.
 - **Audience is derived, never stored** (`getEventAudience` in `src/utils/forumDbActions.ts`):
   - domain meeting → approved members with a `user_roles` row in that domain **plus
-    leadership** — anyone holding a granting `global`-scoped role (president / VP / HRM) is
-    invited to every domain's meetings;
-  - full-team meeting → every approved member.
+    leadership** — anyone holding a granting `global`-scoped role (president / VP / HRM);
+  - full-team meeting → every approved member;
+  - associate-leads meeting → approved members holding `associate lead`
+    (`ASSOC_LEAD_ROLE`) in that domain, or in any domain when `domain` is null, **plus
+    leadership**.
 
   A row only qualifies through a role that grants ≥1 permission, so read-only advisor /
-  alumni are never expected; "leadership" and "read-only" come from `roles.scope` + the grid,
-  never role names. `superadmin` never qualifies anyone (platform role, not a club position).
-  `expectedDomains(ctx)` applies the same rule for the list's "My meetings" filter. Kind +
-  domain are **immutable after creation** (changing them would swap the audience under
-  people already invited) — cancel and recreate instead.
+  alumni are never expected; "leadership" and "read-only" come from `roles.scope` + the grid.
+  The associate-leads audience is the one rule keyed on a role *name* — it's an audience
+  (who is expected), not authorization. `superadmin` never qualifies anyone (platform role,
+  not a club position). The list's "My meetings" filter uses the same rules:
+  `getForumViewer(ctx)` (server, follows "view as") → `isExpected(event, viewer)`
+  (`src/lib/forum/format.ts`). Kind + domain are **immutable after creation** (changing them
+  would swap the audience under people already invited) — cancel and recreate instead.
 - **Authz** `src/lib/forum/permissions.ts` (`canManageEvent`, `createOptions`):
   `forum.domain.manage` via `canIn` (seeded to lead / co-lead / associate lead, so own domain
-  only; leadership holds it globally) and `forum.club.manage` via global `can` (president /
-  VP / HRM). Actions (`src/app/dashboard/forum/actions.ts`) gate through
-  `requireEventManager`: `requireGlobalWriteAccess` for full-team, `requireWriteAccess` +
-  `canIn` for domain meetings. Any approved member can **read** every event. `external` is
+  only; leadership holds it globally), `forum.club.manage` via global `can` (president / VP
+  / HRM), and `forum.assoc.manage` — checked with `canIn` for ONE domain's associate leads
+  (seeded to lead / co-lead / associate lead, so only their own domain's) and with global `can` for
+  EVERY domain's (leadership). Actions (`src/app/dashboard/forum/actions.ts`) gate through
+  `requireEventManager`: `requireGlobalWriteAccess` for full-team and all-domain
+  associate-leads meetings, `requireWriteAccess` + `canIn` for domain and single-domain
+  associate-leads meetings. Any approved member can **read** every event. `external` is
   not manageable until P2.
 - **Validation** `src/lib/forum/schema.ts` (`meetingInputSchema`): the form sends an IST day +
   start/end time; the schema turns them into instants (`istToDate`, fixed `+05:30`). New

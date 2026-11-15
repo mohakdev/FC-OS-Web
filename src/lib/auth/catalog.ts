@@ -84,6 +84,12 @@ export const PERMISSIONS = [
       "Create, edit, cancel and send invites for Forum meetings of the whole club. Only counts when held org-wide.",
   },
   {
+    id: "forum.assoc.manage",
+    label: "Manage associate-leads meetings",
+    description:
+      "Create, edit, cancel and send invites for Forum meetings of the associate leads. Held via a domain-scoped role (lead / co-lead / associate lead), only for that domain's associate leads; a meeting of every domain's associate leads needs it org-wide.",
+  },
+  {
     id: "profile.links.extended",
     label: "Extra profile links",
     description: "Add up to 6 links to your profile instead of 3.",

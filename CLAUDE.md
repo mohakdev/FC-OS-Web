@@ -10,7 +10,7 @@ internal club tool behind a single dashboard and auth/approval gate. Tools live 
 Tracker**, **Member Directory** (approvers edit roles/domains + remove members),
 **Member Requests** (HRM admin), **Canon** (the club's single source of truth; v1 =
 event pages, see `### Canon` in `docs/architecture.md`), **Forum** (internal club meetings:
-domain + full-team, with email invites — `### Forum`; external events live in Canon),
+domain, full-team and associate-leads, with email invites — `### Forum`; external events live in Canon),
 and **Opus** — the PM
 tool that is the current focus of active development. Users are
 club members.
@@ -93,7 +93,9 @@ touching that area:
   tools`** (MoM / Attendance / FC TV / Performance are disabled stubs).
 - **`### Canon`** — event pages, optimistic-lock saves, SPOC-based edit rights.
 - **`### Forum`** — `forum_events` (kind + domain → derived audience; leadership is invited
-  to every domain meeting), `forum.domain.manage` (`canIn`) vs `forum.club.manage` (global),
+  to every domain and associate-leads meeting), `forum.domain.manage` (`canIn`),
+  `forum.club.manage` (global), `forum.assoc.manage` (`canIn` per domain — lead tiers;
+  global for all domains — leadership),
   idempotent detached invite mail + `forum_invites` log. Tool tables/enums/permissions are
   always tool-prefixed (`opus_*`, `canon_*`, `forum_*`).
 - **`### Opus`** — per-domain kanban data model + the built workspace: routes under

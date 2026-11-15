@@ -2,7 +2,7 @@
 // `dbActions.ts` / `canonDbActions.ts`: validation + access control live in the
 // calling Server Action; these helpers own the SQL and do no authz.
 
-import { and, asc, eq, exists, ne, or, sql } from "drizzle-orm";
+import { and, asc, eq, exists, ne, or, type SQL, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "../database/db";
 import { forumEvents } from "../database/schemas/forum_events";
@@ -13,10 +13,15 @@ import { rolePermissions } from "../database/schemas/role_permissions";
 import { roles } from "../database/schemas/roles";
 import { userRoles } from "../database/schemas/user_roles";
 import { SUPERADMIN_ROLE } from "../lib/auth/catalog";
-import { getRoleScopes, grantsForRoles } from "../lib/auth/roles";
-import type { EventStatus, MeetingKind } from "../lib/forum/constants";
+import { getRoleScopes } from "../lib/auth/roles";
+import {
+  ASSOC_LEAD_ROLE,
+  type EventStatus,
+  type MeetingKind,
+} from "../lib/forum/constants";
+import type { ForumViewer } from "../lib/forum/format";
 import type { MeetingValues } from "../lib/forum/schema";
-import { DOMAIN_IDS, type DomainId, isDomainId } from "../lib/opus/format";
+import { type DomainId, isDomainId } from "../lib/opus/format";
 
 // --- types -----------------------------------------------------------------
 
@@ -123,14 +128,19 @@ export const getEvent = async (id: string): Promise<EventRow | null> => {
  * The members an event expects, derived from its kind — never stored, so a
  * member who joins or leaves a domain is right for every future event.
  *
- *   domain_meeting → approved members with a `user_roles` row in that domain,
- *                    PLUS leadership (anyone holding a global-scoped role), who
- *                    are invited to every domain's meetings
- *   club_meeting   → every approved member
+ *   domain_meeting      → approved members with a `user_roles` row in that
+ *                         domain, PLUS leadership
+ *   club_meeting        → every approved member
+ *   assoc_leads_meeting → approved members holding `associate lead` (in that
+ *                         domain, or in any domain when `domain` is null), PLUS
+ *                         leadership
+ *
+ * "Leadership" = anyone holding a granting `global`-scoped role (president / VP
+ * / HRM); they are invited to every domain and associate-leads meeting.
  *
  * A row only qualifies through a role that grants at least one permission, so
  * read-only roles (advisor / alumni — global, but grant nothing) are never
- * expected. "Read-only" and "leadership" are both derived from the grid and
+ * expected. "Read-only" and "leadership" are derived from the grid and
  * `roles.scope`, never from role names. `superadmin` never qualifies anyone: it
  * is the platform maintainer's role, not a club position — a superadmin who is
  * also a lead/president is expected through that role.
@@ -150,13 +160,30 @@ export const getEventAudience = async (event: {
         .where(eq(rolePermissions.roleId, userRoles.role)),
     ),
   );
-  const roleFilter =
-    event.kind === "domain_meeting" && event.domain
-      ? and(
-          grantingRole,
-          or(eq(userRoles.domain, event.domain), eq(roles.scope, "global")),
-        )
-      : grantingRole;
+  const leadership = eq(roles.scope, "global");
+
+  let roleFilter: SQL | undefined;
+  switch (event.kind) {
+    case "club_meeting":
+      roleFilter = grantingRole;
+      break;
+    case "domain_meeting":
+      roleFilter = and(
+        grantingRole,
+        or(eq(userRoles.domain, event.domain as DomainId), leadership),
+      );
+      break;
+    case "assoc_leads_meeting": {
+      const assocLead = event.domain
+        ? and(
+            eq(userRoles.role, ASSOC_LEAD_ROLE),
+            eq(userRoles.domain, event.domain),
+          )
+        : eq(userRoles.role, ASSOC_LEAD_ROLE);
+      roleFilter = and(grantingRole, or(assocLead, leadership));
+      break;
+    }
+  }
 
   const rows = await db
     .selectDistinct({
@@ -184,24 +211,50 @@ export const getEventAudience = async (event: {
 };
 
 /**
- * The domains whose meetings this viewer is expected at — the same rule as
- * `getEventAudience`, for the list's "My meetings" filter. Leadership (a
- * granting, non-superadmin global role) is expected at every domain's meetings;
- * everyone else at their own domains'. Takes `roleIds` / `domainIds` from the
- * AccessContext so a "view as" switch is honoured.
+ * What the viewer is expected at, for the list's "My meetings" filter — the
+ * same rules as `getEventAudience`, as data the client can match with
+ * `isExpected` (lib/forum/format.ts). Built from the viewer's (role, domain)
+ * pairs; under "view as" that is the single switched role, so the filter
+ * follows the switch like every other page.
  */
-export const expectedDomains = async (viewer: {
-  roleIds: string[];
-  domainIds: string[];
-}): Promise<DomainId[]> => {
-  const scopes = await getRoleScopes();
-  const globalRoles = viewer.roleIds.filter(
-    (r) => r !== SUPERADMIN_ROLE && scopes.get(r) === "global",
+export const getForumViewer = async (ctx: {
+  userId: string;
+  viewAs: { role: string; domain: string | null } | null;
+}): Promise<ForumViewer> => {
+  const pairs = ctx.viewAs
+    ? [{ role: ctx.viewAs.role, domain: ctx.viewAs.domain }]
+    : await db
+        .select({ role: userRoles.role, domain: userRoles.domain })
+        .from(userRoles)
+        .where(eq(userRoles.id, ctx.userId));
+
+  const [scopes, granting] = await Promise.all([
+    getRoleScopes(),
+    db
+      .selectDistinct({ roleId: rolePermissions.roleId })
+      .from(rolePermissions)
+      .then((rows) => new Set<string>(rows.map((r) => r.roleId))),
+  ]);
+  const counted = pairs.filter(
+    (p) => p.role !== SUPERADMIN_ROLE && granting.has(p.role),
   );
-  if (globalRoles.length > 0 && (await grantsForRoles(globalRoles)).size > 0) {
-    return [...DOMAIN_IDS];
-  }
-  return viewer.domainIds.filter(isDomainId);
+  const inDomain = (p: { domain: string | null }) =>
+    p.domain !== null && isDomainId(p.domain);
+
+  return {
+    member: counted.length > 0,
+    leadership: counted.some((p) => scopes.get(p.role) === "global"),
+    domains: [
+      ...new Set(counted.filter(inDomain).map((p) => p.domain as DomainId)),
+    ],
+    assocDomains: [
+      ...new Set(
+        counted
+          .filter((p) => p.role === ASSOC_LEAD_ROLE && inDomain(p))
+          .map((p) => p.domain as DomainId),
+      ),
+    ],
+  };
 };
 
 /** Which audience members already got which email, for the detail page. */

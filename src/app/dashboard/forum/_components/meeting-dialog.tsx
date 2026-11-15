@@ -50,8 +50,53 @@ import { type DomainId, formatDomain } from "@/lib/opus/format";
 import { cn } from "@/lib/utils";
 import { createMeetingAction, updateMeetingAction } from "../actions";
 
-/** `"club"` = full-team meeting; otherwise the domain of a domain meeting. */
-type Audience = "club" | DomainId;
+/**
+ * One select value per (kind, domain) the dialog can create:
+ *   "club"            → full-team meeting
+ *   "<domain>"        → that domain's meeting
+ *   "assoc"           → associate leads of every domain
+ *   "assoc:<domain>"  → that domain's associate leads
+ */
+type Audience = "club" | "assoc" | DomainId | `assoc:${DomainId}`;
+
+const toAudience = (kind: MeetingKind, domain: DomainId | null): Audience => {
+  switch (kind) {
+    case "club_meeting":
+      return "club";
+    case "assoc_leads_meeting":
+      return domain ? `assoc:${domain}` : "assoc";
+    case "domain_meeting":
+      return domain as DomainId;
+  }
+};
+
+const fromAudience = (
+  a: Audience,
+): { kind: MeetingKind; domain: DomainId | null } => {
+  if (a === "club") return { kind: "club_meeting", domain: null };
+  if (a === "assoc") return { kind: "assoc_leads_meeting", domain: null };
+  if (a.startsWith("assoc:")) {
+    return {
+      kind: "assoc_leads_meeting",
+      domain: a.slice("assoc:".length) as DomainId,
+    };
+  }
+  return { kind: "domain_meeting", domain: a as DomainId };
+};
+
+const audienceLabel = (a: Audience): string => {
+  const { kind, domain } = fromAudience(a);
+  switch (kind) {
+    case "club_meeting":
+      return "Full team (every member)";
+    case "assoc_leads_meeting":
+      return domain
+        ? `${formatDomain(domain)} associate leads`
+        : "Associate leads (all domains)";
+    case "domain_meeting":
+      return `${formatDomain(domain as DomainId)} domain`;
+  }
+};
 
 export type EditableMeeting = {
   id: string;
@@ -82,7 +127,7 @@ function initialState(props: Props) {
   if (props.mode === "edit") {
     const e = props.event;
     return {
-      audience: (e.kind === "club_meeting" ? "club" : e.domain) as Audience,
+      audience: toAudience(e.kind, e.domain),
       title: e.title,
       description: e.description,
       venue: e.venue ?? "",
@@ -93,7 +138,14 @@ function initialState(props: Props) {
     };
   }
   const first: Audience | "" =
-    props.options.domains[0] ?? (props.options.club ? "club" : "");
+    props.options.domains[0] ??
+    (props.options.club
+      ? "club"
+      : props.options.assocAll
+        ? "assoc"
+        : props.options.assocDomains[0]
+          ? (`assoc:${props.options.assocDomains[0]}` as const)
+          : "");
   return {
     audience: first as Audience,
     title: "",
@@ -126,8 +178,7 @@ export function MeetingDialog(props: Props) {
   const submit = () =>
     start(async () => {
       const input: MeetingInput = {
-        kind: form.audience === "club" ? "club_meeting" : "domain_meeting",
-        domain: form.audience === "club" ? null : form.audience,
+        ...fromAudience(form.audience),
         title: form.title,
         description: form.description,
         venue: form.venue || null,
@@ -159,26 +210,19 @@ export function MeetingDialog(props: Props) {
       router.push(`/dashboard/forum/${res.id}`);
     });
 
-  const audienceChoices: { value: Audience; label: string }[] =
+  const audienceValues: Audience[] =
     props.mode === "create"
       ? [
-          ...(props.options.club
-            ? [{ value: "club" as const, label: "Full team (every member)" }]
-            : []),
-          ...props.options.domains.map((d) => ({
-            value: d,
-            label: `${formatDomain(d)} domain`,
-          })),
+          ...(props.options.club ? (["club"] as const) : []),
+          ...props.options.domains,
+          ...(props.options.assocAll ? (["assoc"] as const) : []),
+          ...props.options.assocDomains.map((d) => `assoc:${d}` as const),
         ]
-      : [
-          {
-            value: form.audience,
-            label:
-              form.audience === "club"
-                ? "Full team (every member)"
-                : `${formatDomain(form.audience)} domain`,
-          },
-        ];
+      : [form.audience];
+  const audienceChoices = audienceValues.map((value) => ({
+    value,
+    label: audienceLabel(value),
+  }));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -189,7 +233,7 @@ export function MeetingDialog(props: Props) {
           <DialogDescription>
             {editing
               ? "Changing the time, venue or title can email everyone who was invited."
-              : "The audience is worked out from who's in the club or domain right now. Leadership is invited to every domain's meetings."}
+              : "The audience is worked out from who's in the club or domain right now. Leadership is invited to every domain and associate-leads meeting."}
           </DialogDescription>
         </DialogHeader>
 
