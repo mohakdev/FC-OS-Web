@@ -7,8 +7,17 @@ import { redirect } from "next/navigation";
 import { db } from "@/database/db";
 import { profiles } from "@/database/schemas/profiles";
 import { auth } from "@/lib/auth/server";
+import { uniqueViolationConstraint } from "@/lib/db/errors";
 import { onboardingSchema } from "@/lib/validation/onboarding";
-import { onboardProfile } from "@/utils/dbActions";
+import {
+  isPhoneTaken,
+  isRaNumberTaken,
+  onboardProfile,
+} from "@/utils/dbActions";
+
+const PHONE_TAKEN = "That phone number is already used by another member.";
+const RA_TAKEN =
+  "That RA number is already registered. Contact HR if it's yours.";
 
 export type OnboardingActionState = { error: string } | undefined;
 
@@ -33,12 +42,23 @@ export async function submitOnboarding(
     .limit(1);
 
   if (!existing) {
+    // The phone check needs a profile id to exclude; a fresh applicant has
+    // none, so any match is someone else.
+    if (await isPhoneTaken(parsed.data.phone, ""))
+      return { error: PHONE_TAKEN };
+    if (await isRaNumberTaken(parsed.data.raNumber)) return { error: RA_TAKEN };
+
     try {
       await onboardProfile(user.id, user.email, parsed.data);
-    } catch {
+    } catch (e) {
+      // Lost a race between the checks above and the insert.
+      const constraint = uniqueViolationConstraint(e);
+      if (constraint?.includes("ra_number")) return { error: RA_TAKEN };
+      if (constraint?.includes("phone")) return { error: PHONE_TAKEN };
       return { error: "Could not complete onboarding. Please try again." };
     }
   }
 
-  redirect("/pending");
+  // Step 2: the optional extras (picture, quote, links), then /pending.
+  redirect("/onboarding/details");
 }

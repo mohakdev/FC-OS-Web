@@ -13,7 +13,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { ViewAsToolbar } from "@/components/view-as-toolbar";
 import { rolesEnum } from "@/database/schemas/roles";
 import { SUPERADMIN_ROLE } from "@/lib/auth/catalog";
-import { getAuthState } from "@/lib/auth/context";
+import { getAuthState, needsRaNumber } from "@/lib/auth/context";
 import { allPermissions, can, canAny } from "@/lib/auth/permissions";
 import { getRoleScopes, holdsSuperadmin } from "@/lib/auth/roles";
 import { isDomainId } from "@/lib/opus/format";
@@ -42,6 +42,8 @@ export default async function RootLayout({
   if (state.kind === "unauthenticated") redirect("/login");
   if (state.kind === "no-profile") redirect("/onboarding");
   if (state.ctx.status !== "approved") redirect("/pending");
+  // One-time screen: approved members with no RA on file (advisor/alumni exempt).
+  if (needsRaNumber(state.ctx)) redirect("/onboarding/details");
 
   // Only plain serializable data may cross the RSC boundary into the client
   // sidebar — never built nav nodes (Lucide icons are functions). The sidebar

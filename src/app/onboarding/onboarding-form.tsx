@@ -13,6 +13,12 @@ import {
 } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+  InputGroupText,
+} from "@/components/ui/input-group";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { DOMAIN_IDS, DOMAIN_LABELS } from "@/lib/validation/onboarding";
@@ -27,6 +33,7 @@ export default function OnboardingForm() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("");
+  const [raNumber, setRaNumber] = useState("");
   const [dateOfBirth, setDateOfBirth] = useState("");
   const [gender, setGender] = useState<"male" | "female" | "">("");
   const [domains, setDomains] = useState<string[]>([]);
@@ -47,6 +54,7 @@ export default function OnboardingForm() {
         firstName,
         lastName,
         phone,
+        raNumber,
         gender,
         dateOfBirth,
         domains,
@@ -63,7 +71,8 @@ export default function OnboardingForm() {
           Complete your profile
         </CardTitle>
         <CardDescription className="font-sans">
-          Tell us a bit about yourself and the domains you want to join.
+          Step 1 of 2 · Tell us a bit about yourself and the domains you want to
+          join.
         </CardDescription>
       </CardHeader>
       <form onSubmit={handleSubmit}>
@@ -91,13 +100,39 @@ export default function OnboardingForm() {
 
           <div className="grid gap-2">
             <Label htmlFor="phone">Phone</Label>
+            <InputGroup>
+              <InputGroupAddon>
+                <InputGroupText>+91</InputGroupText>
+              </InputGroupAddon>
+              <InputGroupInput
+                id="phone"
+                type="tel"
+                inputMode="numeric"
+                autoComplete="tel-national"
+                required
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+              />
+            </InputGroup>
+          </div>
+
+          <div className="grid gap-2">
+            <Label htmlFor="raNumber">RA number</Label>
             <Input
-              id="phone"
-              type="tel"
+              id="raNumber"
               required
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              autoComplete="off"
+              autoCapitalize="characters"
+              spellCheck={false}
+              maxLength={20}
+              aria-describedby="raNumber-hint"
+              className="font-mono uppercase"
+              value={raNumber}
+              onChange={(e) => setRaNumber(e.target.value)}
             />
+            <p id="raNumber-hint" className="text-xs text-muted-foreground">
+              Your SRM registration number: RA followed by 13 digits.
+            </p>
           </div>
 
           <div className="grid gap-2">

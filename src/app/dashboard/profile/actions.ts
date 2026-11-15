@@ -3,9 +3,9 @@
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import sharp from "sharp";
-
 import { type AccessContext, getAccessContext } from "@/lib/auth/context";
 import { canAny } from "@/lib/auth/permissions";
+import { isUniqueViolation } from "@/lib/db/errors";
 import { notifyRealtime } from "@/lib/realtime/notify";
 import { deleteObject, putObject } from "@/lib/storage/s3";
 import {
@@ -37,17 +37,24 @@ async function requireApprovedSelf(): Promise<
   return ctx;
 }
 
+// The picture can also be set during onboarding step 2, while the application
+// is still pending. Still own-profile only (writes `ctx.userId`); a rejected
+// member can't touch it.
+async function requireSelf(): Promise<AccessContext | { error: string }> {
+  const ctx = await getAccessContext();
+  if (!ctx) return { error: "You are not signed in." };
+  if (ctx.status === "rejected") {
+    return { error: "Your account is not approved." };
+  }
+  return ctx;
+}
+
 async function afterProfileChange() {
   revalidatePath("/dashboard/profile");
+  revalidatePath("/onboarding/details");
   revalidatePath("/dashboard/member-directory");
   await notifyRealtime({ scope: "member" });
 }
-
-const isUniqueViolation = (e: unknown) =>
-  typeof e === "object" &&
-  e !== null &&
-  ((e as { code?: string }).code === "23505" ||
-    (e as { cause?: { code?: string } }).cause?.code === "23505");
 
 export async function updateProfileDetails(
   input: ProfileDetailsInput,
@@ -98,7 +105,7 @@ export async function updateProfileDetails(
 export async function uploadAvatar(
   formData: FormData,
 ): Promise<ProfileActionResult> {
-  const ctx = await requireApprovedSelf();
+  const ctx = await requireSelf();
   if ("error" in ctx) return ctx;
 
   const file = formData.get("file");
@@ -143,7 +150,7 @@ export async function uploadAvatar(
 }
 
 export async function removeAvatar(): Promise<ProfileActionResult> {
-  const ctx = await requireApprovedSelf();
+  const ctx = await requireSelf();
   if ("error" in ctx) return ctx;
 
   const previous = await setAvatarKey(ctx.userId, null);
