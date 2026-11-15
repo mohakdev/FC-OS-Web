@@ -29,6 +29,51 @@ import { buildIcs } from "./ics";
 // Pacing lives in the pooled transport (`src/lib/mail.ts`, SMTP_RATE_PER_SEC):
 // one app-wide rate limit, so overlapping runs can't add up past it.
 
+/** Waits before each retry of a temporarily rejected message. */
+const RETRY_DELAYS_MS = [2_000, 4_000, 8_000];
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+const TRANSIENT_CODES = new Set([
+  "ECONNECTION",
+  "ETIMEDOUT",
+  "ESOCKET",
+  "EDNS",
+]);
+
+/**
+ * Worth retrying? SMTP 4xx (e.g. 421/450/451/452 — busy, throttled), a dropped
+ * connection, or a rate-limit message. 5xx and anything else are permanent.
+ */
+function isTransient(err: unknown): boolean {
+  const e = err as { responseCode?: number; code?: string; message?: string };
+  if (typeof e?.responseCode === "number") {
+    return e.responseCode >= 400 && e.responseCode < 500;
+  }
+  if (e?.code && TRANSIENT_CODES.has(e.code)) return true;
+  return /rate|too many/i.test(e?.message ?? "");
+}
+
+type MailOptions = Parameters<typeof mailer.sendMail>[0];
+
+/**
+ * `mailer.sendMail` with backoff on transient failures (2s, 4s, 8s). Forum
+ * only — a login code isn't retried, the user can just request a new one.
+ */
+async function sendWithRetry(msg: MailOptions) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await mailer.sendMail(msg);
+    } catch (err) {
+      const delay = RETRY_DELAYS_MS[attempt];
+      if (delay === undefined || !isTransient(err)) throw err;
+      console.warn(
+        `[forum] transient SMTP error, retry ${attempt + 1}/${RETRY_DELAYS_MS.length} in ${delay}ms`,
+      );
+      await sleep(delay);
+    }
+  }
+}
+
 export type SendSummary = { sent: number; failed: number; skipped: number };
 
 const eventUrl = (id: string) => `${APP_URL}/dashboard/forum/${id}`;
@@ -160,7 +205,7 @@ export async function sendEventMail(
     }
     const { subject, text } = compose(current, kind, member);
     try {
-      await mailer.sendMail({
+      await sendWithRetry({
         from: MAIL_FROM,
         to: member.email,
         subject,
