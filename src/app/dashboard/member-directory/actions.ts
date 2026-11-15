@@ -11,10 +11,14 @@ import {
   globalGrantsForRoles,
   holdsSuperadmin,
 } from "@/lib/auth/roles";
+import { isUniqueViolation } from "@/lib/db/errors";
 import { notifyRealtime } from "@/lib/realtime/notify";
+import { raNumberSchema } from "@/lib/validation/onboarding";
 import {
+  isRaNumberTaken,
   type RoleLabel,
   setMemberDecision,
+  setMemberRaNumber,
   setMemberRoles,
 } from "@/utils/dbActions";
 
@@ -113,4 +117,36 @@ export async function removeMember(profileId: string): Promise<ManageResult> {
   revalidatePath("/dashboard/member-directory");
   await notifyRealtime({ scope: "member" });
   return { ok: true };
+}
+
+const RA_TAKEN = "That RA number is already registered to another member.";
+
+/**
+ * Replaces a member's RA number (members can't change their own). Replace
+ * only — the schema requires a valid RA, so it can never be cleared. Org-wide,
+ * so `member.ra.edit` must be held globally.
+ */
+export async function updateMemberRa(
+  profileId: string,
+  raNumber: string,
+): Promise<{ ok: true; raNumber: string } | { error: string }> {
+  const ctx = await requireGlobalWriteAccess("member.ra.edit");
+  if ("error" in ctx) return ctx;
+
+  const parsed = raNumberSchema.safeParse(raNumber);
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Invalid RA number." };
+  }
+  if (await isRaNumberTaken(parsed.data, profileId)) return { error: RA_TAKEN };
+
+  try {
+    await setMemberRaNumber(profileId, parsed.data);
+  } catch (e) {
+    if (isUniqueViolation(e)) return { error: RA_TAKEN };
+    throw e;
+  }
+
+  revalidatePath("/dashboard/member-directory");
+  await notifyRealtime({ scope: "member" });
+  return { ok: true, raNumber: parsed.data };
 }

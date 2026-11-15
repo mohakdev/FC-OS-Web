@@ -64,7 +64,7 @@ import {
 import { linkMeta } from "@/lib/profile/links";
 import { formatPhone } from "@/lib/validation/profile";
 import type { ApprovedMember } from "@/utils/dbActions";
-import { removeMember, updateMember } from "./actions";
+import { removeMember, updateMember, updateMemberRa } from "./actions";
 
 const PAGE_SIZE = 20;
 
@@ -404,9 +404,12 @@ function MemberManagePanel({
 export default function MemberDirectoryClient({
   members,
   canManage,
+  canEditRa,
 }: {
   members: ApprovedMember[];
   canManage: boolean;
+  /** Holds `member.ra.edit` org-wide (superadmin by default). */
+  canEditRa: boolean;
 }) {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
@@ -446,7 +449,8 @@ export default function MemberDirectoryClient({
     const matchesSearch =
       m.firstName.toLowerCase().includes(q) ||
       m.lastName.toLowerCase().includes(q) ||
-      m.email.toLowerCase().includes(q);
+      m.email.toLowerCase().includes(q) ||
+      (m.raNumber ?? "").toLowerCase().includes(q);
     const matchesGender = genderFilter === "all" || m.gender === genderFilter;
     const matchesDomain =
       domainFilters.size === 0 || m.domains.some((d) => domainFilters.has(d));
@@ -467,7 +471,7 @@ export default function MemberDirectoryClient({
             <Search className="h-4 w-4 text-muted-foreground" />
           </div>
           <Input
-            placeholder="Search by name or email…"
+            placeholder="Search by name, email or RA…"
             value={search}
             onChange={(e) => {
               setSearch(e.target.value);
@@ -785,6 +789,11 @@ export default function MemberDirectoryClient({
                     {formatPhone(selected.phone)}
                   </a>
                 </div>
+                <MemberRaRow
+                  key={selected.id}
+                  member={selected}
+                  canEdit={canEditRa}
+                />
                 <MemberLinks links={selected.links} />
               </div>
 
@@ -800,6 +809,99 @@ export default function MemberDirectoryClient({
         </SheetContent>
       </Sheet>
     </>
+  );
+}
+
+/**
+ * The member's RA number. Members can't change their own; `member.ra.edit`
+ * holders can replace it here (never clear it). Keeps the saved value locally
+ * because the open sheet shows a snapshot of the member.
+ */
+function MemberRaRow({
+  member,
+  canEdit,
+}: {
+  member: ApprovedMember;
+  canEdit: boolean;
+}) {
+  const [current, setCurrent] = useState(member.raNumber);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(member.raNumber ?? "");
+  const [isPending, startTransition] = useTransition();
+
+  const save = () =>
+    startTransition(async () => {
+      const res = await updateMemberRa(member.id, draft);
+      if ("error" in res) {
+        toast.error(res.error);
+        return;
+      }
+      setCurrent(res.raNumber);
+      setEditing(false);
+      toast.success("RA number updated");
+    });
+
+  return (
+    <div className="flex items-center gap-3">
+      <span className="w-20 shrink-0 text-sm text-muted-foreground">RA</span>
+      {editing ? (
+        <form
+          className="flex flex-1 items-center gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            save();
+          }}
+        >
+          <Input
+            aria-label="RA number"
+            autoFocus
+            required
+            autoComplete="off"
+            spellCheck={false}
+            maxLength={20}
+            className="h-8 font-mono uppercase"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+          />
+          <Button type="submit" size="sm" disabled={isPending}>
+            {isPending ? <Loader2 className="animate-spin" /> : null}
+            Save
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            disabled={isPending}
+            onClick={() => {
+              setDraft(current ?? "");
+              setEditing(false);
+            }}
+          >
+            Cancel
+          </Button>
+        </form>
+      ) : (
+        <>
+          {current ? (
+            <span className="font-mono text-sm">{current}</span>
+          ) : (
+            <span className="text-sm text-muted-foreground">Not added</span>
+          )}
+          {canEdit ? (
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              className="size-7"
+              aria-label="Edit RA number"
+              onClick={() => setEditing(true)}
+            >
+              <Pencil />
+            </Button>
+          ) : null}
+        </>
+      )}
+    </div>
   );
 }
 

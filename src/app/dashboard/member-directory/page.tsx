@@ -14,6 +14,7 @@ export default async function MemberDirectoryPage() {
   // Directory management is org-wide, so it needs the grant globally — a lead
   // holding `member.manage` in one domain must not get the whole directory.
   const canManage = ctx ? can(ctx.grants, "member.manage") : false;
+  const canEditRa = ctx ? can(ctx.grants, "member.ra.edit") : false;
 
   return (
     <div className="flex flex-col gap-4">
@@ -27,7 +28,11 @@ export default async function MemberDirectoryPage() {
           </span>
         </p>
       </div>
-      <MemberDirectoryClient members={members} canManage={canManage} />
+      <MemberDirectoryClient
+        members={members}
+        canManage={canManage}
+        canEditRa={canEditRa}
+      />
     </div>
   );
 }

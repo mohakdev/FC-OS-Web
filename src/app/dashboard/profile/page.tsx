@@ -82,6 +82,14 @@ export default async function ProfilePage() {
           </div>
           <div className="space-y-1 sm:col-span-1">
             <p className="text-lg font-medium text-muted-foreground">
+              RA number
+            </p>
+            <span className="font-mono text-xl font-semibold">
+              {profile.raNumber ?? "Not set"}
+            </span>
+          </div>
+          <div className="space-y-1 sm:col-span-1">
+            <p className="text-lg font-medium text-muted-foreground">
               {profile.domains.length > 1 ? "Domains" : "Domain"}
             </p>
             <ul className="space-y-0.5">

@@ -83,6 +83,11 @@ export default function MemberRequestRow({
         </p>
         <p className="truncate text-sm text-muted-foreground">{member.email}</p>
         <p className="text-sm text-muted-foreground">{member.phone}</p>
+        {member.raNumber ? (
+          <p className="font-mono text-sm text-muted-foreground">
+            {member.raNumber}
+          </p>
+        ) : null}
         {member.domains.length > 0 ? (
           <div className="mt-3 flex flex-col gap-2">
             {kept.map((domain) => (
