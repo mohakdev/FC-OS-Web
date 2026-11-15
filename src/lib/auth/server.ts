@@ -3,9 +3,9 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError } from "better-auth/api";
 import { nextCookies } from "better-auth/next-js";
 import { emailOTP } from "better-auth/plugins";
-import { createTransport } from "nodemailer";
 import { db } from "@/database/db";
 import * as authSchema from "@/database/schemas/auth";
+import { MAIL_FROM, mailer } from "@/lib/mail";
 import { SRMIST_EMAIL_SUFFIX } from "@/lib/validation/onboarding";
 
 // Singleton self-hosted Better Auth server instance. Exposes the Better Auth
@@ -19,17 +19,7 @@ if (!secret) {
   throw new Error("BETTER_AUTH_SECRET must be set in the environment");
 }
 
-// OTP email delivery over real SMTP (Resend by default — smtp.resend.com:465).
-// Configured via SMTP_* env vars; sender via MAIL_FROM. `auth` is only attached
-// when SMTP_USER is set, so an unauthenticated relay still works if ever needed.
-const mailer = createTransport({
-  host: process.env.SMTP_HOST,
-  port: Number(process.env.SMTP_PORT ?? 465),
-  secure: process.env.SMTP_SECURE !== "false", // 465 = implicit TLS
-  auth: process.env.SMTP_USER
-    ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
-    : undefined,
-});
+// OTP email goes out through the shared SMTP transport in `src/lib/mail.ts`.
 
 // Membership is @srmist.edu.in only. The client form validates this, but the
 // Better Auth API is public and would otherwise let anyone POST any email,
@@ -97,7 +87,7 @@ export const auth = betterAuth({
         }
         try {
           await mailer.sendMail({
-            from: process.env.MAIL_FROM ?? "FC OS <no-reply@fc-os.tech>",
+            from: MAIL_FROM,
             to: email,
             subject: "Your FC OS login code",
             text: `Your FC OS login code is ${otp}. It expires in 10 minutes. If you request a new code, older codes stop working.`,

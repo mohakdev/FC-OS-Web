@@ -2,6 +2,7 @@ import {
   AudioLines,
   BookUser,
   Bug,
+  CalendarDays,
   LayoutDashboard,
   type LucideIcon,
   MonitorUp,
@@ -91,6 +92,12 @@ export const dashboardSidebarConfig: { sections: DashboardNavSection[] } = {
           label: "Canon",
           icon: ScrollText,
           href: "/dashboard/canon",
+        },
+        {
+          id: "forum",
+          label: "Forum",
+          icon: CalendarDays,
+          href: "/dashboard/forum",
         },
         {
           id: "mom",

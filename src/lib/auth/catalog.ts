@@ -66,6 +66,18 @@ export const PERMISSIONS = [
       "Edit and publish a Canon event page you are a SPOC on. Cannot change its SPOCs or delete it.",
   },
   {
+    id: "forum.domain.manage",
+    label: "Manage domain meetings",
+    description:
+      "Create, edit, cancel and send invites for Forum meetings of a domain. Held via a domain-scoped role, this only covers that domain.",
+  },
+  {
+    id: "forum.club.manage",
+    label: "Manage full-team meetings",
+    description:
+      "Create, edit, cancel and send invites for Forum meetings of the whole club. Only counts when held org-wide.",
+  },
+  {
     id: "profile.links.extended",
     label: "Extra profile links",
     description: "Add up to 6 links to your profile instead of 3.",

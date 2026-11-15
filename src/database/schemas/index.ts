@@ -1,5 +1,3 @@
-export * from "./activity";
-export * from "./attendance";
 export * from "./auth";
 export * from "./bug_reports";
 export * from "./canon_categories";
@@ -10,6 +8,8 @@ export * from "./canon_event_spocs";
 export * from "./canon_event_venues";
 export * from "./canon_events";
 export * from "./domains";
+export * from "./forum_events";
+export * from "./forum_invites";
 export * from "./opus_labels";
 export * from "./opus_priorities";
 export * from "./opus_statuses";

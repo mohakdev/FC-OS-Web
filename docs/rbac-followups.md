@@ -125,6 +125,29 @@ are supposed to be a duplicate, and should never be derived from anything.
 
 ---
 
+## 5. `user_roles` has no primary key
+
+**Severity: low today, annoying in practice.** Raised 2026-11-15 while testing Forum locally.
+
+`user_roles` (`src/database/schemas/user_roles.ts`) is `(user_id, role, domain)` with no
+primary key and no unique constraint. Two consequences:
+
+- **Duplicate rows are representable.** Nothing stops `('x', 'lead', 'technical')` being
+  inserted twice. Grant resolution dedupes (sets), so nothing breaks visibly, but counts and
+  the directory's role pairs can drift.
+- **Supabase Studio's table editor refuses to edit it** ("no primary key"), so local role
+  changes have to go through the SQL editor.
+
+**Fix:** `domain` is nullable (global roles), so it can't be part of a composite PK. Add a
+surrogate `id uuid primary key default gen_random_uuid()` and a
+`UNIQUE NULLS NOT DISTINCT (user_id, role, domain)` constraint (Postgres ≥15; prod is 17).
+Before pushing, check prod for existing duplicates (`select user_id, role, domain, count(*)
+from user_roles group by 1,2,3 having count(*) > 1`) and delete them, or the constraint
+fails. `setMemberRoles` already delete/reinserts inside a transaction, so it needs no change;
+any raw `insert` into `user_roles` should become `onConflictDoNothing`.
+
+---
+
 ## Not doing (deliberately)
 
 - ~~Dropping `app_settings.domain_leads_can_approve`~~ — done 2026-11-14: the Settings
@@ -134,5 +157,5 @@ are supposed to be a duplicate, and should never be derived from anything.
   query path re-audited. The app is the trust boundary; app-level checks are the right layer
   here. Design notes would go in `docs/future-architecture.md` if this ever comes back.
 - **A `role_permissions` audit log.** Worth having eventually ("who took away my access?"),
-  but there's no audit table today (`activity` is club events, not audit) and the grid has
+  but there's no audit table today (`forum_events` is club events, not audit) and the grid has
   ~5 possible editors. Add it when the grid gets used in anger.

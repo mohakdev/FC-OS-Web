@@ -67,6 +67,14 @@ const OPUS_MANAGER: PermissionId[] = [
 // SPOC on. Being a SPOC is the relationship; this is the capability behind it.
 const CANON_SPOC: PermissionId[] = ["canon.event.edit.own"];
 
+// Forum: domain leads run their own domain's meetings (scope narrows it);
+// leadership runs full-team meetings and, via its global roles, every domain's.
+const FORUM_DOMAIN: PermissionId[] = ["forum.domain.manage"];
+const FORUM_LEADERSHIP: PermissionId[] = [
+  "forum.domain.manage",
+  "forum.club.manage",
+];
+
 const APPROVER: PermissionId[] = [
   "member.approve",
   "member.manage",
@@ -74,15 +82,16 @@ const APPROVER: PermissionId[] = [
   ...OPUS_MANAGER,
   ...CANON_SPOC,
   "canon.event.manage",
+  ...FORUM_LEADERSHIP,
 ];
 
 type RoleId = (typeof rolesEnum.enumValues)[number];
 
 const BASE_GRANTS: Record<RoleId, PermissionId[]> = {
   member: ["opus.task.status.own", ...CANON_SPOC],
-  "associate lead": [...OPUS_MANAGER, ...CANON_SPOC],
-  "co-lead": [...OPUS_MANAGER, ...CANON_SPOC],
-  lead: [...OPUS_MANAGER, ...CANON_SPOC],
+  "associate lead": [...OPUS_MANAGER, ...CANON_SPOC, ...FORUM_DOMAIN],
+  "co-lead": [...OPUS_MANAGER, ...CANON_SPOC, ...FORUM_DOMAIN],
+  lead: [...OPUS_MANAGER, ...CANON_SPOC, ...FORUM_DOMAIN],
   "human resource manager": APPROVER,
   "vice president": [...APPROVER, "role.manage", "bug.manage"],
   president: [...APPROVER, "role.manage", "bug.manage"],

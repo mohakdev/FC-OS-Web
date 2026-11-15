@@ -12,7 +12,8 @@ export type RealtimeEvent =
   | { scope: "opus-board"; domain: string }
   | { scope: "member" }
   | { scope: "bug-report" }
-  | { scope: "canon" };
+  | { scope: "canon" }
+  | { scope: "forum" };
 
 /**
  * Broadcast a realtime signal to every Node process listening on the channel.
