@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { phoneSchema } from "./profile";
+
 // Official org email domain. Sign-up and onboarding both require it.
 export const SRMIST_EMAIL_SUFFIX = "@srmist.edu.in";
 
@@ -44,10 +46,25 @@ export const DOMAIN_LABELS: Record<(typeof DOMAIN_IDS)[number], string> = {
   outreach: "Outreach",
 };
 
+// SRM registration number: "RA" + 13 digits. Normalized (trim, no inner
+// spaces, uppercase) BEFORE validating so "ra 2511…" lands on the stored form.
+// The error states the format only — never an example ID.
+export const RA_REGEX = /^RA\d{13}$/;
+
+export const raNumberSchema = z
+  .string()
+  .transform((value) => value.replace(/\s+/g, "").toUpperCase())
+  .pipe(
+    z.string().regex(RA_REGEX, {
+      message: "RA number must be RA followed by 13 digits.",
+    }),
+  );
+
 export const onboardingSchema = z.object({
   firstName: z.string().trim().min(1, "First name is required"),
   lastName: z.string().trim().min(1, "Last name is required"),
-  phone: z.string().trim().min(5, "Enter a valid phone number"),
+  phone: phoneSchema,
+  raNumber: raNumberSchema,
   gender: z.enum(["male", "female"]),
   dateOfBirth: z.coerce.date({ message: "Enter a valid date of birth" }),
   domains: z.array(z.enum(DOMAIN_IDS)).min(1, "Select at least one domain"),

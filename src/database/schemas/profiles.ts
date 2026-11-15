@@ -30,6 +30,11 @@ export const profiles = pgTable("profiles", {
   phone: text("phone").unique().notNull(),
   gender: genderEnum("gender"),
   dateOfBirth: date("date_of_birth"),
+  // SRM registration number: "RA" + 13 digits, unique across accounts. Nullable
+  // in the DB (members from before it was collected); the app collects it at
+  // onboarding and via a one-time screen on the next dashboard visit. Locked
+  // once set — only `member.ra.edit` holders can change it.
+  raNumber: text("ra_number").unique(),
   // Approval state machine + audit of the deciding HRM/leadership user.
   status: profileStatusEnum("status").notNull().default("pending_approval"),
   approvedBy: uuid("approved_by"),

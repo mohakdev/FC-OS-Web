@@ -2,7 +2,7 @@
 // go through validation + access control at the calling Server Action; these
 // helpers own the actual SQL.
 
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { db } from "../database/db";
 import {
   type ProfileLink,
@@ -51,6 +51,7 @@ export const onboardProfile = async (
       firstName: data.firstName,
       lastName: data.lastName,
       phone: data.phone,
+      raNumber: data.raNumber,
       gender: data.gender,
       dateOfBirth: data.dateOfBirth.toISOString().slice(0, 10),
       status: "pending_approval",
@@ -76,6 +77,7 @@ export const getPendingMembers = async () => {
       lastName: profiles.lastName,
       email: profiles.email,
       phone: profiles.phone,
+      raNumber: profiles.raNumber,
       domain: userRoles.domain,
     })
     .from(profiles)
@@ -91,6 +93,7 @@ export const getPendingMembers = async () => {
       lastName: string;
       email: string;
       phone: string;
+      raNumber: string | null;
       domains: string[];
     }
   >();
@@ -106,6 +109,7 @@ export const getPendingMembers = async () => {
         lastName: row.lastName,
         email: row.email,
         phone: row.phone,
+        raNumber: row.raNumber,
         domains: row.domain ? [row.domain] : [],
       });
     }
@@ -146,6 +150,7 @@ export const getApprovedMembers = async () => {
       lastName: profiles.lastName,
       email: profiles.email,
       phone: profiles.phone,
+      raNumber: profiles.raNumber,
       gender: profiles.gender,
       dateOfBirth: profiles.dateOfBirth,
       status: profiles.status,
@@ -173,6 +178,7 @@ export const getApprovedMembers = async () => {
       lastName: string;
       email: string;
       phone: string;
+      raNumber: string | null;
       gender: "male" | "female" | null;
       dateOfBirth: string | null;
       status: "pending_approval" | "approved" | "rejected";
@@ -204,6 +210,7 @@ export const getApprovedMembers = async () => {
         lastName: row.lastName,
         email: row.email,
         phone: row.phone,
+        raNumber: row.raNumber,
         gender: row.gender,
         dateOfBirth: row.dateOfBirth,
         status: row.status,
@@ -234,6 +241,7 @@ export const getProfile = async (profileId: string) => {
       lastName: profiles.lastName,
       email: profiles.email,
       phone: profiles.phone,
+      raNumber: profiles.raNumber,
       gender: profiles.gender,
       dateOfBirth: profiles.dateOfBirth,
       quote: profileDetails.quote,
@@ -262,6 +270,7 @@ export const getProfile = async (profileId: string) => {
     lastName: first.lastName,
     email: first.email,
     phone: first.phone,
+    raNumber: first.raNumber,
     gender: first.gender,
     dateOfBirth: first.dateOfBirth,
     quote: first.quote,
@@ -403,25 +412,104 @@ export const updateOwnProfileDetails = async (
     links: ProfileLink[];
   },
 ) => {
-  const now = new Date();
   await db.transaction(async (tx) => {
     await tx
       .update(profiles)
       .set({ phone: input.phone, dateOfBirth: input.dateOfBirth })
       .where(eq(profiles.id, profileId));
-    await tx
-      .insert(profileDetails)
-      .values({
-        userId: profileId,
-        quote: input.quote,
-        links: input.links,
-        updatedAt: now,
-      })
-      .onConflictDoUpdate({
-        target: profileDetails.userId,
-        set: { quote: input.quote, links: input.links, updatedAt: now },
-      });
+    await upsertExtras(tx, profileId, input);
   });
+};
+
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/** Upserts the quote + links half of `profile_details` (avatar untouched). */
+const upsertExtras = async (
+  tx: Tx,
+  profileId: string,
+  input: { quote: string | null; links: ProfileLink[] },
+) => {
+  const now = new Date();
+  await tx
+    .insert(profileDetails)
+    .values({
+      userId: profileId,
+      quote: input.quote,
+      links: input.links,
+      updatedAt: now,
+    })
+    .onConflictDoUpdate({
+      target: profileDetails.userId,
+      set: { quote: input.quote, links: input.links, updatedAt: now },
+    });
+};
+
+/**
+ * The onboarding "details" screen: optionally sets the member's RA number (only
+ * while it is still empty — the lock lives in the WHERE clause, so a member can
+ * never overwrite it) and saves quote + links, atomically.
+ *
+ * Returns false when an RA was given but the row already had one.
+ */
+export const completeOwnProfileDetails = async (
+  profileId: string,
+  input: {
+    raNumber: string | null;
+    quote: string | null;
+    links: ProfileLink[];
+  },
+): Promise<boolean> =>
+  db.transaction(async (tx) => {
+    if (input.raNumber) {
+      const updated = await tx
+        .update(profiles)
+        .set({ raNumber: input.raNumber })
+        .where(and(eq(profiles.id, profileId), isNull(profiles.raNumber)))
+        .returning({ id: profiles.id });
+      if (updated.length === 0) return false;
+    }
+    await upsertExtras(tx, profileId, input);
+    return true;
+  });
+
+/** Is `raNumber` already on a profile other than `exceptProfileId`? */
+export const isRaNumberTaken = async (
+  raNumber: string,
+  exceptProfileId?: string,
+) => {
+  const [row] = await db
+    .select({ id: profiles.id })
+    .from(profiles)
+    .where(eq(profiles.raNumber, raNumber))
+    .limit(1);
+  return Boolean(row && row.id !== exceptProfileId);
+};
+
+/** Replaces any member's RA number (Member Directory, `member.ra.edit`). */
+export const setMemberRaNumber = async (
+  profileId: string,
+  raNumber: string,
+) => {
+  await db.update(profiles).set({ raNumber }).where(eq(profiles.id, profileId));
+};
+
+/** Saved quote + links + avatar version, to prefill the onboarding details screen. */
+export const getOwnProfileExtras = async (profileId: string) => {
+  const [row] = await db
+    .select({
+      quote: profileDetails.quote,
+      links: profileDetails.links,
+      key: profileDetails.avatarKey,
+      updatedAt: profileDetails.avatarUpdatedAt,
+    })
+    .from(profileDetails)
+    .where(eq(profileDetails.userId, profileId))
+    .limit(1);
+  return {
+    quote: row?.quote ?? null,
+    links: row?.links ?? [],
+    avatarVersion: row ? avatarVersion(row.key, row.updatedAt) : null,
+  };
 };
 
 /** Current avatar object key for a profile, or null. */

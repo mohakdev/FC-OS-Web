@@ -9,6 +9,7 @@ import { roles } from "@/database/schemas/roles";
 import { userRoles } from "@/database/schemas/user_roles";
 import type { PermissionId } from "./catalog";
 import {
+  allPermissions,
   can,
   canAny,
   EMPTY_GRANTS,
@@ -33,6 +34,8 @@ export type AccessContext = {
   /** Sign-in email from the Better Auth session (`user.email`). */
   email: string;
   status: ProfileStatus;
+  /** SRM registration number, or null if not collected yet (see `needsRaNumber`). */
+  raNumber: string | null;
   roleIds: string[];
   /** Domains the user belongs to (empty for global-only roles). */
   domainIds: string[];
@@ -133,6 +136,7 @@ export const getAuthState = cache(async (): Promise<AuthState> => {
     lastName: profile.lastName,
     email: user.email,
     status: profile.status,
+    raNumber: profile.raNumber,
     realGrants,
   };
 
@@ -196,6 +200,23 @@ function logViewAsWrite(
       allowed,
       at: new Date().toISOString(),
     }),
+  );
+}
+
+/**
+ * Must this member enter their RA number before using the dashboard?
+ *
+ * Only approved members are asked (pending applicants from before RA was
+ * collected are caught after approval). Read-only roles (advisor / alumni) skip
+ * it: "read-only" is derived — the member's REAL grants are empty — the same
+ * rule `checkExclusiveReadOnlyRole` uses. Real grants, so a "view as" switch
+ * never triggers or skips the gate.
+ */
+export function needsRaNumber(ctx: AccessContext): boolean {
+  return (
+    ctx.status === "approved" &&
+    !ctx.raNumber &&
+    allPermissions(ctx.realGrants).length > 0
   );
 }
 

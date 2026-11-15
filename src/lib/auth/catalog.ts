@@ -20,6 +20,12 @@ export const PERMISSIONS = [
     description: "Edit a member's roles and domains in the Member Directory.",
   },
   {
+    id: "member.ra.edit",
+    label: "Edit RA numbers",
+    description:
+      "Correct a member's RA number in the Member Directory. Members can't change their own. Only counts when held org-wide.",
+  },
+  {
     id: "member.remove",
     label: "Remove members",
     description: "Remove an approved member from the club.",
