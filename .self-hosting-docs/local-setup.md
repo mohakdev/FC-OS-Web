@@ -1,7 +1,8 @@
 # Fully-local setup (no Neon)
 
 Branch `feat/local-self-hosting` runs FC OS against a 100% local stack: Supabase
-Postgres + self-hosted Better Auth + inbucket (local SMTP catcher). `main` stays on Neon.
+Postgres + self-hosted Better Auth + Mailpit (local SMTP catcher, `[local_smtp]` in
+`supabase/config.toml` — Supabase CLI ≥3 renamed the old `[inbucket]` section). `main` stays on Neon.
 
 ## Prerequisites
 
@@ -13,8 +14,8 @@ Postgres + self-hosted Better Auth + inbucket (local SMTP catcher). `main` stays
 ## Bring-up
 
 ```bash
-# 1. Local Postgres + Studio + inbucket (email catcher)
-supabase start                 # Postgres :54322 · Studio :54323 · inbucket UI :54324 / smtp :54325
+# 1. Local Postgres + Studio + Mailpit (email catcher)
+supabase start                 # Postgres :54322 · Studio :54323 · mail UI :54324 / smtp :54325
 
 # 2. Env
 cp .env.example .env
@@ -32,7 +33,8 @@ bun run dev                    # http://localhost:3000
 ## Login flow (local)
 
 1. `/login` → enter an SRM email → "send code".
-2. Better Auth's emailOTP plugin sends the OTP via nodemailer → inbucket.
+2. Better Auth's emailOTP plugin sends the OTP via nodemailer → Mailpit (`SMTP_HOST=127.0.0.1`, `SMTP_PORT=54325`,
+   `SMTP_SECURE=false`, empty `SMTP_USER`).
 3. Open the inbox UI at **http://localhost:54324**, read the code, paste it.
 4. First sign-in creates the auth user → app routes to `/onboarding`.
 
