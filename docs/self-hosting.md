@@ -1,5 +1,12 @@
 # Self-Hosting FC OS on the AIO (`claw`, CachyOS / Arch)
 
+> **⚠️ Superseded / historical (2026-06-23 brainstorm).** Production no longer follows this
+> doc: the box runs Ubuntu + **Coolify** (Dockerfile build, Coolify Postgres 17), auth is
+> **self-hosted Better Auth** (Blocker B2 was done — no Neon Auth), and public access is a
+> **Cloudflare Tunnel** carried by WARP. Do **not** follow the steps below — in particular
+> never run `drizzle-kit migrate` (this DB syncs via `push`, see `pushing-migrations.md`).
+> Current docs: `SELF_HOSTING.md`, `production-runbook.md`.
+
 Step-by-step to run this repo + Postgres on the home AIO box and serve it on a domain
 over HTTPS. **Brainstorm / far-future doc** — written against a live recon of the box
 (`ssh aio`) on 2026-06-23.

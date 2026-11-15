@@ -1,5 +1,9 @@
 # FC OS — self-host performance report
 
+> **Snapshot (2026-07-13).** Measured on the pre-Coolify setup (pm2 + a Supabase Docker
+> stack). Production has since moved to a Coolify Dockerfile app + Coolify Postgres 17, so
+> the pm2 and Supabase recommendations below no longer apply. Figures are kept for history.
+
 **Date:** 2026-07-13 · **Host:** `claw` (AIO box) · **Target:** `fc-os-web-local` @ `:3005` (serves **fc-os.tech**)
 **Deployed commit:** `408c21c` · **Build:** Next.js 16.2.6, Bun, pm2 fork mode
 

@@ -8,7 +8,7 @@ that's only partial — see `production-runbook.md` "Known gaps". This is the cl
 
 | Layer | Home (default) | Neon failback | How |
 |---|---|---|---|
-| DB driver | `postgres-js` (local Supabase PG) | **`neon-serverless` (WebSocket)** | `db.ts` branches on env. **Not** neon-http — it can't do interactive transactions; the WebSocket Pool driver can, so the existing `db.transaction` calls (dbActions ×2, opusDbActions ×6) work unchanged on both. Re-add `@neondatabase/serverless` + `ws`. |
+| DB driver | `postgres-js` (Coolify Postgres 17 `fcos-db`) | **`neon-serverless` (WebSocket)** | `db.ts` branches on env. **Not** neon-http — it can't do interactive transactions; the WebSocket Pool driver can, so the existing `db.transaction` calls (`dbActions`, `opusDbActions`, `canonDbActions`) work unchanged on both. Re-add `@neondatabase/serverless` + `ws`. |
 | Auth | self-hosted Better Auth | **same** self-hosted Better Auth | Drop Neon Auth (hosted) entirely. Better Auth needs only *a* Postgres — local or Neon. Its tables follow `DATABASE_URL`. |
 | Mail | Resend | Resend | identical |
 | Realtime | postgres-js LISTEN/NOTIFY (auto-reconnect) | neon-serverless LISTEN (manual reconnect) | isolated to `src/lib/realtime/pg-driver.ts` — swap that one file (see below) |

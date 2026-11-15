@@ -1,5 +1,12 @@
 # FC OS — Maintainability & Refactor Plan
 
+> **Status (spot-checked 2026-11-15; items 2, 3, 8, 10–12 not re-verified).** Still open: `src/lib/constants.ts`,
+> `src/lib/action-result.ts`, `src/lib/env.ts` don't exist; `member-directory-client.tsx`
+> is unsplit (831 lines). Changed since: the test harness is **`bun test`** (not Vitest) —
+> see `src/lib/**/*.test.ts`. Item 1 (`loadTaskDetailAction`) is intentionally left as
+> "any approved member": every member may read every domain's board (Opus spec), and
+> authorization is now permission-based (`### RBAC` in `architecture.md`).
+
 ## Context
 
 FC OS has grown to ~11k lines of app source across 7 dashboard tools, with Opus under

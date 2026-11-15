@@ -9,7 +9,9 @@ internal club tool behind a single dashboard and auth/approval gate. Tools live 
 `src/app/dashboard/`: **MoM**, **Attendance Tracker**, **FC TV CMS**, **Performance
 Tracker**, **Member Directory** (approvers edit roles/domains + remove members),
 **Member Requests** (HRM admin), **Canon** (the club's single source of truth; v1 =
-event pages, see `### Canon` in `docs/architecture.md`), and **Opus** — the PM
+event pages, see `### Canon` in `docs/architecture.md`), **Forum** (events: domain +
+full-team meetings with email invites; external events/registrations next — `### Forum`),
+and **Opus** — the PM
 tool that is the current focus of active development. Users are
 club members.
 
@@ -22,6 +24,8 @@ bun run build            # next build
 bun run lint             # biome check  (lint)
 bun run format           # biome format --write
 bun run seed             # tsx src/database/seed.ts
+bun test                 # unit tests (src/lib/**/*.test.ts, bun:test)
+bun run db:push:prod     # also db:sql:prod / db:seed:prod / db:psql:prod / db:studio:prod (scripts/prod-db.sh)
 
 bunx drizzle-kit generate --config drizzle.config.ts   # generate migration SQL (for the record)
 bunx drizzle-kit push     --config drizzle.config.ts   # apply schema to DB (NOT `migrate` — see below)
@@ -64,8 +68,9 @@ map, surprising cross-doc links), `graph.html` (interactive).
 
 ## Architecture
 
-Stack: Next.js 16 (App Router, RSC) · React 19 · Drizzle ORM on Neon Postgres · Neon
-Auth (Better Auth) · Tailwind v4 · Zod v4.
+Stack: Next.js 16 (App Router, RSC) · React 19 · Drizzle ORM (`postgres-js`) on
+self-hosted Postgres 17 · self-hosted Better Auth (email OTP) · Garage S3 (avatars) ·
+Tailwind v4 · Zod v4. Tests: `bun test`.
 
 Full detail lives in **`docs/architecture.md`** — read the relevant `###` section before
 touching that area:
@@ -79,23 +84,33 @@ touching that area:
   (signed-in + approved + holds it), then `canIn(...)` once the domain is known. Grants are
   additive with no deny rules — read-only roles hold nothing and must stay exclusive. Admin
   grid at `/dashboard/settings/roles`.
-- **`### Data layer`** — schema-per-file convention, `dbActions.ts` trust boundary,
-  `db.batch()` (no interactive transactions on neon-http).
+- **`### Data layer`** — schema-per-file convention, `src/utils/*DbActions.ts` own the
+  SQL, `actions.ts` is the trust boundary, multi-statement writes use `db.transaction`.
+- **`### Profile + avatars`** — Customize dialog, profile links, sharp → Garage S3, the
+  auth-gated `/api/avatar/[userId]` route.
 - **`### App structure`** — gated dashboard shell, `dashboard-nav.ts`, Opus.
+- **`### Members (directory + requests)`**, **`### Bug Reports`**, **`### Placeholder
+  tools`** (MoM / Attendance / FC TV / Performance are disabled stubs).
+- **`### Canon`** — event pages, optimistic-lock saves, SPOC-based edit rights.
+- **`### Forum`** — `forum_events` (kind + domain → derived audience; leadership is invited
+  to every domain meeting), `forum.domain.manage` (`canIn`) vs `forum.club.manage` (global),
+  idempotent detached invite mail + `forum_invites` log. Tool tables/enums/permissions are
+  always tool-prefixed (`opus_*`, `canon_*`, `forum_*`).
 - **`### Opus`** — per-domain kanban data model + the built workspace: routes under
   `src/app/dashboard/opus/`, data layer in `src/utils/opusDbActions.ts`, authz in
   `src/lib/opus/permissions.ts` (`canManageDomain` = manager-only full edits vs
   `canChangeTaskStatus` = assignees may set status on their own tasks/subtasks), shared
   presentation in `src/lib/opus/format.ts` — `statusFraction`/`StatusIcon` fill the
-  progress-ring by rank among dynamic statuses, and any status flagged
-  `opus_statuses.ring_full` renders a complete ring (data-driven; replaces the old
-  hardcoded Done/Cancelled special-casing).
+  progress-ring by rank among dynamic statuses, and any status (or priority) flagged
+  `ring_full` renders complete (data-driven; replaces the old hardcoded Done/Cancelled
+  special-casing).
 - **`### Realtime`** — app-wide live updates via Postgres `LISTEN/NOTIFY` (channel
   `fc_realtime`) → one `globalThis`-guarded process-wide hub (`src/lib/realtime/server.ts`)
   → SSE route `src/app/api/realtime/route.ts` (nodejs, auth-gated, 25s heartbeat) → single
   `EventSource("/api/realtime")` per tab in `src/components/realtime/realtime-provider.tsx`
   → debounced `router.refresh()`. Server actions emit via `notifyRealtime(...)` at existing
-  revalidate choke-points (opus `revalidateBoard`/`revalidateManage`, member actions).
+  revalidate choke-points (opus `revalidateBoard`/`revalidateManage`, member, bug-report and
+  Canon actions); pages listen with `<Refresher scope=…/>`.
   **All driver-specific listen/notify is isolated to `src/lib/realtime/pg-driver.ts`** — the
   only file to touch for the future neon-serverless failback (it needs manual reconnect;
   postgres-js auto-reconnects). No new env var: the EventSource URL is same-origin relative.

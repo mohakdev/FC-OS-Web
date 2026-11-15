@@ -1,22 +1,35 @@
 # Architecture
 
-**Stack**: Next.js 16 (App Router, RSC) · React 19 · Drizzle ORM on Neon Postgres
-(`@neondatabase/serverless`, `neon-http` driver) · Neon Auth (Better Auth) · Tailwind v4
-· Zod v4.
+**Stack**: Next.js 16 (App Router, RSC, `output: "standalone"`) · React 19 · Drizzle ORM on
+self-hosted **Postgres 17** (`postgres-js` driver, `drizzle-orm/postgres-js`) · self-hosted
+**Better Auth** (email OTP, mail over SMTP/Resend) · S3-compatible object storage (Garage) ·
+Tailwind v4 · shadcn/ui · Zod v4. Tests: `bun test` (`src/lib/**/*.test.ts`).
+
+Deployment (Coolify on box `claw`, Cloudflare Tunnel): `SELF_HOSTING.md`,
+`production-runbook.md`. Required env vars: `.env.example`.
 
 ### Auth + onboarding/approval flow
 
-Auth is **passwordless email OTP** via Neon Auth. There is no signup — the first OTP
-sign-in auto-creates the auth user.
+Auth is **passwordless email OTP** via self-hosted Better Auth. There is no signup — the
+first OTP sign-in auto-creates the auth user. Sign-in is restricted to SRMIST addresses
+(`SRMIST_EMAIL_SUFFIX` in `src/lib/validation/onboarding.ts`), enforced server-side both on
+OTP send and on user creation.
 
-- `src/lib/auth/server.ts` — singleton `auth` (`createNeonAuth`); exposes `.handler()`
-  (API route), `.middleware()` (proxy), and `getSession()`.
-- `src/lib/auth/client.ts` — browser `authClient`; OTP send + verify (`src/components/Login.tsx`).
-- `src/app/api/auth/[...path]` — Neon Auth route handler.
-- `src/proxy.ts` — gates **only** `/dashboard/*`, redirecting anonymous users to `/login`.
-  Server Action POSTs (`next-action` header) are passed through untouched — running them
-  through the session-refreshing middleware corrupts the action response. `/onboarding`
-  and `/pending` are deliberately excluded and self-guard at the page level.
+- `src/lib/auth/server.ts` — singleton `auth` (`betterAuth` + `drizzleAdapter` +
+  `emailOTP` + `nextCookies`). OTP mail goes out through nodemailer over `SMTP_*`
+  (`MAIL_FROM` sender). Server code reads the session via `auth.api.getSession(...)`.
+  Requires `BETTER_AUTH_SECRET` (and `BETTER_AUTH_URL`). Auth tables:
+  `src/database/schemas/auth.ts`.
+- `src/lib/auth/client.ts` — browser `authClient` (`createAuthClient` + `emailOTPClient`);
+  OTP send + verify in `src/components/Login.tsx`.
+- `src/app/api/auth/[...path]/route.ts` — `toNextJsHandler(auth)`.
+- `src/proxy.ts` — gates **only** `/dashboard/*`: no Better Auth session cookie
+  (`getSessionCookie`, no DB hit) → redirect to `/login`. Server Action POSTs
+  (`next-action` header) are passed through untouched — a redirect would corrupt the action
+  response. `/onboarding` and `/pending` are deliberately excluded and self-guard at the
+  page level.
+- `src/app/login`, `src/app/onboarding` (form + `actions.ts` → `onboardProfile`),
+  `src/app/pending` — the pre-dashboard pages.
 - `src/lib/auth/context.ts` — `getAuthState()` / `getAccessContext()` resolve the
   `AuthState` (`unauthenticated` | `no-profile` | `active` + `AccessContext`) from the
   session joined to `profiles` + `user_roles`.
@@ -26,7 +39,7 @@ enforces the state machine — `no-profile` → `/onboarding`, status ≠ `appro
 `/pending`. New members land in `pending_approval`; an approver decides via
 **Member Requests**.
 
-> **CRITICAL**: any RSC / Server Action / Route Handler that calls `auth.getSession()`
+> **CRITICAL**: any RSC / Server Action / Route Handler that calls `auth.api.getSession()`
 > (directly or via `getAuthState`) **must** set `export const dynamic = "force-dynamic"`.
 
 ### RBAC
@@ -75,8 +88,9 @@ An action touching a specific domain must *also* call `canIn(ctx.grants, permiss
 domain)` once it knows the domain; `requireWriteAccess` only does the cheap `canAny`
 precheck. `onboarding/actions.ts` is the one exception (runs pre-profile).
 
-**Org-wide actions gate on `requireGlobalWriteAccess` instead** — the permission grid, the
-member directory (`updateMember`/`removeMember`) and the app-settings toggle. They have no
+**Org-wide actions gate on `requireGlobalWriteAccess` instead** — the permission grid
+(`setRolePermissions`), the member directory (`member.manage` edits, `member.remove`) and
+bug-report resolve/delete (`bug.manage`). They have no
 domain to narrow to, so the `canAny` precheck would be the *whole* check and a domain-scoped
 grant would act club-wide: ticking `member.manage` on `lead` would hand every lead the
 directory. Their pages already gate on global `can()`; this closes the gap between what the
@@ -128,13 +142,24 @@ real grants (`intersectGrants`) so a switch can only narrow. `realGrants` (switc
 ### Data layer
 
 - Schemas: one table per file in `src/database/schemas/`, re-exported from `index.ts`;
-  `db` is configured in `src/database/db.ts`. Drizzle config: `drizzle.config.ts`
-  (migrations output to `drizzle/migrations`).
-- `src/utils/dbActions.ts` owns the actual SQL (query + write helpers). Server Actions in
+  `db` is configured in `src/database/db.ts` (`postgres(DATABASE_URL)` → `drizzle`; the raw
+  `client` is also exported for realtime LISTEN/NOTIFY). Drizzle config: `drizzle.config.ts`
+  (migrations output to `drizzle/migrations`; SSL comes from the connection string).
+  Schema changes sync with `drizzle-kit push`, never `migrate` — `pushing-migrations.md`.
+- SQL lives in per-area helper files, never in components or actions:
+  `src/utils/dbActions.ts` (profiles, onboarding, members, roles, avatars),
+  `opusDbActions.ts`, `canonDbActions.ts`, `bugDbActions.ts`. Server Actions in
   `**/actions.ts` own the trust boundary: **Zod validation + authorization check first**,
-  then call a `dbActions` helper.
-- The `neon-http` driver has **no interactive transactions** — use `db.batch([...])` for
-  atomic multi-statement writes (see `onboardProfile`).
+  then call a helper.
+- `postgres-js` supports **real interactive transactions** — use
+  `db.transaction(async (tx) => …)` for atomic multi-statement writes (e.g.
+  `onboardProfile`, `setMemberRoles`, `setMemberDecision`, every multi-row Opus/Canon
+  write). The old neon-http `db.batch()` restriction no longer applies.
+- `bun run seed` (`src/database/seed.ts`) is idempotent: roles + scopes, the permission
+  catalog, the default `role_permissions` grid, domains, and per-domain Opus
+  statuses/priorities. Prod: `bun run db:seed:prod` (`scripts/prod-db.sh`).
+- The old `activity` / `attendance` stub tables were dropped (migration `0025`) in favour of
+  Forum's `forum_events` table — see `### Forum`. Attendance will reference it.
 
 ### Profile + avatars
 
@@ -157,15 +182,115 @@ real grants (`intersectGrants`) so a switch can only narrow. `realGrants` (switc
 
 ### App structure
 
-- `src/app/dashboard/layout.tsx` — the gated shell (sidebar + breadcrumb), passes
-  `isApprover` and `canApproveMembers` (approver or enabled domain lead) to `AppSidebar`.
-- `src/lib/dashboard-nav.ts` — single source of truth for sidebar nav (sections, hrefs,
-  `requiresApprover`, `disabled`/`Soon` flags). Add tools here.
-- `src/app/dashboard/member-directory/page.tsx` — lists approved members; passes
-  `canManage` (`ctx.isApprover`) to the client, which gates the per-member edit/remove
-  panel in the detail sheet.
+- `src/app/dashboard/layout.tsx` — the gated shell. Runs the state machine, then renders
+  `TooltipProvider` → `RealtimeProvider` → `SidebarProvider` (`AppSidebar` + breadcrumb) and,
+  for `platform.view_as` holders, the `ViewAsToolbar`. It passes `AppSidebar` only plain
+  serializable data: `permissions` (`allPermissions(ctx.grants)`), `user` (name, email,
+  domains, `isSuperadmin`, avatar version) and `navData` (`manageableDomains`, `myDomains`,
+  `pendingRequests` badge count).
+- `src/lib/dashboard-nav.ts` — single source of truth for sidebar nav: sections
+  (overview / Tools / Administration), items with `requiresPermission` (shown when held
+  globally or in any domain — e.g. Member Requests needs `member.approve`, Roles &
+  Permissions needs `role.manage`), `disabled` (hidden until the tool ships) and
+  `children` (collapsible sub-nav, usually injected at render time through `AppSidebar`'s
+  `navChildren` seam). Add tools here.
+- `src/app/dashboard/page.tsx` — the dashboard home (your profile, domains, roles).
+- Shared shell components live in `src/components/` (`app-sidebar`, `nav-user`,
+  `DynamicBreadcrumb`, `profile-avatar`, `superadmin-badge`, `view-as-toolbar`,
+  `realtime/`, `theme/`); shadcn primitives in `src/components/ui/`.
 - Opus (`/dashboard/opus`) is the per-domain kanban task manager — see `### Opus` below
   for the data model and the workspace built on top of it.
+
+### Members (directory + requests)
+
+- **Member Requests** `src/app/dashboard/member-requests/` — page gated on
+  `canAny(member.approve)`, lists `getPendingMembersFor(ctx.grants)` (only applicants in
+  domains where you hold the grant). `decideMember` runs `requireWriteAccess("member.approve")`,
+  then requires `canIn` on at least one of the applicant's domains. On approve, the approver
+  may trim the applicant's domains/roles (≥1 must remain; read-only roles stay exclusive via
+  `checkExclusiveReadOnlyRole`). Writes go through `setMemberRoles` / `setMemberDecision`
+  (both carry the lockout invariant — see `### RBAC`).
+- **Member Directory** `src/app/dashboard/member-directory/` — lists approved members;
+  `canManage` = global `can(member.manage)` gates the edit/remove panel in the detail sheet.
+  Actions use `requireGlobalWriteAccess("member.manage" | "member.remove")`.
+- Both pages mount `<Refresher scope="member"/>`; every member write emits
+  `notifyRealtime({ scope: "member" })`.
+
+### Bug Reports
+
+`/dashboard/bug-reports` — club-wide bug tracker for FC OS itself. Schema
+`src/database/schemas/bug_reports.ts` (`open | fixed`, `reported_by`/`resolved_by` FK
+`set null`). SQL in `src/utils/bugDbActions.ts`. Any approved member can file
+(`submitBugAction`, no permission); resolve/reopen/delete need global `bug.manage`
+(`requireGlobalWriteAccess`). Realtime scope `bug-report`.
+
+### Forum
+
+Events tool at `/dashboard/forum` — every meeting and event the club holds, and the table
+future features hang off (volunteers, registrations, the Canon page, attendance). Built in
+phases (P1 meetings + invites ✅ · P2 external events + Canon link + volunteers · P3
+registrations + CSV import). Everything follows the tool-prefix convention: tables / enums
+`forum_*`, permissions `forum.*`, code in `src/lib/forum/` + `src/utils/forumDbActions.ts`,
+realtime scope `forum`.
+
+- **Schema** `src/database/schemas/forum_events.ts`: `forum_events` (`kind` =
+  `domain_meeting | club_meeting | external`, `domain` set **iff** domain meeting — CHECK
+  `forum_events_domain_kind_check`; title ≤80, description, venue, `starts_at`/`ends_at`
+  timestamptz (nullable only for undated external events; meetings always have one),
+  `status` `scheduled | cancelled`, `revision`, created/updated at+by). `revision` bumps on
+  every change the audience should hear about (title, time, venue, cancel) and is the
+  iCalendar SEQUENCE. `forum_invites.ts`: a log of sent mail, PK
+  `(event_id, profile_id, kind, revision)`.
+- **Audience is derived, never stored** (`getEventAudience` in `src/utils/forumDbActions.ts`):
+  - domain meeting → approved members with a `user_roles` row in that domain **plus
+    leadership** — anyone holding a granting `global`-scoped role (president / VP / HRM) is
+    invited to every domain's meetings;
+  - full-team meeting → every approved member.
+
+  A row only qualifies through a role that grants ≥1 permission, so read-only advisor /
+  alumni are never expected; "leadership" and "read-only" come from `roles.scope` + the grid,
+  never role names. `superadmin` never qualifies anyone (platform role, not a club position).
+  `expectedDomains(ctx)` applies the same rule for the list's "My meetings" filter. Kind +
+  domain are **immutable after creation** (changing them would swap the audience under
+  people already invited) — cancel and recreate instead.
+- **Authz** `src/lib/forum/permissions.ts` (`canManageEvent`, `createOptions`):
+  `forum.domain.manage` via `canIn` (seeded to lead / co-lead / associate lead, so own domain
+  only; leadership holds it globally) and `forum.club.manage` via global `can` (president /
+  VP / HRM). Actions (`src/app/dashboard/forum/actions.ts`) gate through
+  `requireEventManager`: `requireGlobalWriteAccess` for full-team, `requireWriteAccess` +
+  `canIn` for domain meetings. Any approved member can **read** every event. `external` is
+  not manageable until P2.
+- **Validation** `src/lib/forum/schema.ts` (`meetingInputSchema`): the form sends an IST day +
+  start/end time; the schema turns them into instants (`istToDate`, fixed `+05:30`). New
+  meetings must start in the future (checked in the action).
+- **Invites** `src/lib/forum/send.ts` `sendEventMail(eventId, kind)`, started **detached**
+  from the action (`mailLater`) so it returns immediately. Not `after()`: its callbacks wait
+  for the response's `onClose`, which never fired for these actions, so invites silently
+  never went out. Detached promises are safe because FC OS is one long-lived Node server.
+  Recipients = audience minus anyone already logged for that (kind, revision); a row is
+  written per accepted message, so retries never double-mail and **Send N invites** on the
+  detail page finishes any interrupted run (or reaches members who joined later). `invite` →
+  audience not yet invited; `update` / `cancel` → only people who were invited; nothing is
+  mailed once a meeting has started. Each mail carries an `.ics` (`src/lib/forum/ics.ts`,
+  METHOD REQUEST/CANCEL, UID `<id>@fc-os.tech`). 600 ms between messages to stay under
+  Resend's rate limit; mind the plan's daily quota for full-team invites. SMTP transport is
+  shared with OTP in `src/lib/mail.ts`.
+- **UI** `src/app/dashboard/forum/`: `page.tsx` (Upcoming / Past tabs, filter My meetings /
+  everything / full-team / per domain, **New meeting** only if `createOptions` allows any),
+  `[id]/page.tsx` (when/where/agenda, audience table with per-member invite status for
+  managers, edit / send invites / cancel / delete via `_components/event-actions.tsx`),
+  `_components/meeting-dialog.tsx` (create + edit). Display helpers `src/lib/forum/format.ts`
+  (IST). Tests: `src/lib/forum/forum.test.ts`.
+- **Realtime** scope `forum`: every write and every finished mail batch emits it; both pages
+  mount `<Refresher scope="forum"/>`.
+
+### Placeholder tools
+
+MoM, Attendance Tracker, FC TV CMS and Performance Tracker are stub `page.tsx` routes,
+flagged `disabled` in `dashboard-nav.ts`, with **no permissions in the catalog** (a
+permission is added only when its feature exists). Attendance has a full spec:
+`docs/specs/attendance-tracker.md`; when built it records attendance against Forum `events`
+(members/volunteers in one table, external participants in a separate one).
 
 ### Opus
 
@@ -178,13 +303,18 @@ domain (a row in `domains`) lights up Opus for it with zero code changes — re-
   Both carry `position` (ordering), `isDefault` (seeded rows, protected from deletion at the
   app layer), and a `unique(domain, name)` constraint (enables idempotent seeding). Defaults
   seeded per domain: statuses Backlog/Todo/In Progress/Done/Cancelled; priorities
-  Urgent/High/Medium/Low. **"No Priority" is not a row** — it's `priority_id IS NULL`.
-  `opus_statuses` also carries `color` (hex, default `#6b7280`): rendered as a Linear-style
-  progress ring whose fill angle = `(orderedIndex + 1) / nonCancelledCount` (see `StatusIcon`).
-  **"Cancelled" is terminal, not a completion step**: it renders as a cross (lucide `CircleX`)
-  and is excluded from the ring fraction, so the step before it (e.g. "Done") reads as the
-  full ring. Detection/fraction live in `format.ts` (`isCancelledStatus`, `statusFraction`) —
-  name-based, matching the existing `isStatusClosed`.
+  Low/Medium/High/Urgent (positions 0→3). **"No Priority" is not a row** — it's
+  `priority_id IS NULL`. `opus_statuses` also carries `color` (hex, default `#6b7280`),
+  rendered as a Linear-style progress ring (`StatusIcon`).
+  **Both tables carry `ring_full`** (boolean, data-driven, toggled in Manage via
+  `setStatusFullAction` / `setPriorityFullAction`). A `ring_full` status always renders a
+  complete ring (a "finished" state); every other status fills by its rank among the
+  non-full ("dynamic") statuses, `(index + 1) / dynamicCount` — `statusFraction` in
+  `format.ts`. Full rows are kept ordered below the dynamic ones. Seeded: Done + Cancelled
+  are `ring_full`. Priorities use the same rule for their bar icon (`priorityBars`,
+  `PriorityIcon`): a `ring_full` priority (seeded: Urgent) lights every bar. The one
+  remaining name-based helper is `isStatusClosed` ("Done"/"Cancelled"), used only to stop
+  closed tasks reading as overdue (`isOverdue`).
 - **`opus_labels`** — per-domain custom labels (`name` + `color` hex). No defaults, no order.
 - **`opus_tasks`** — the task table. `parent_task_id` self-FK (cascade) models sub-tasks;
   null = top-level. One-level nesting is enforced at the **app layer**, not the DB. Sub-task
@@ -194,17 +324,21 @@ domain (a row in `domains`) lights up Opus for it with zero code changes — re-
 - **`opus_task_assignees`** / **`opus_task_labels`** — many-to-many junctions (composite PK),
   replacing the old array column. **`opus_task_links`** — references/URLs per task.
 
-Authorization is **not** in the schema — enforce in Server Actions via the `user_roles`
-row for the task's domain (member = edit only tasks assigned to them; lead/co-lead/associate
-lead = manage their domain's tasks + statuses/priorities/labels; above-leads = full access).
+Authorization is **not** in the schema — it is the permission grid (`### RBAC`), checked
+per domain with `canIn`. Three permissions: `opus.task.manage` (create/edit/move/delete
+tasks + subtasks), `opus.config.manage` (statuses/priorities/labels), `opus.task.status.own`
+(change the *status* of a task you're assigned to — the only field a non-manager may touch).
+Leads hold the manage grants via domain-scoped roles (own domain only); approvers via
+global roles (every domain). Every approved member can **read** every domain's board.
 
 **Workspace implementation:**
 
 - Routes under `src/app/dashboard/opus/`: nested `layout.tsx` only guards access (no
-  secondary sidebar). Opus navigation — Overview · Tasks (all domains) · Manage (only
-  `manageableDomains`) — is a collapsible dropdown under "Opus" in the main `AppSidebar`,
-  built server-side by `buildOpusNavChildren` (`src/lib/opus/nav.ts`) and injected via the
-  generic `navChildren` seam on `AppSidebar`. `page.tsx` = Overview dashboard;
+  secondary sidebar). Opus navigation is a collapsible group under "Opus" in the main
+  `AppSidebar`: **Overview** + **one row per domain board** (your own domains first), and a
+  hover "Manage" gear (`action`) on the domains in `manageableDomains`. It's built by
+  `buildOpusNavChildren` (`src/lib/opus/nav.ts`) from the serializable `navData` the layout
+  passes, and injected via the generic `navChildren` seam. `page.tsx` = Overview dashboard;
   `tasks/[domain]/page.tsx` = kanban
   board; `manage/[domain]/page.tsx` = status/priority/label editor (+ `manage/page.tsx`
   redirects to the first manageable domain). All `force-dynamic`. `[domain]` params are a
@@ -212,24 +346,32 @@ lead = manage their domain's tasks + statuses/priorities/labels; above-leads = f
 - **Data layer** lives in `src/utils/opusDbActions.ts` (not the members' `dbActions.ts`),
   same trust-boundary convention. Key reads: `getOpusBoard`, `getOpusTaskDetail`,
   `getOpusDomainMeta`, `getDomainMembers`, `getOpusOverview`. Writes: `createOpusTask`,
-  `updateOpusTask`, `moveOpusTask` (DnD persist), `deleteOpusTask`, and CRUD/reorder for
-  statuses/priorities/labels — multi-statement writes go through a `runBatch` (`db.batch`)
-  helper.
+  `updateOpusTask`, `setOpusTaskStatus`, `moveOpusTask` (DnD persist), `deleteOpusTask`, and
+  CRUD/reorder/`set…Full` for statuses/priorities/labels. Authz lookups: `getTaskAuthInfo`,
+  `isTopLevelTask`, `statusDomain`/`priorityDomain`/`labelDomain` (+ `…ByIds`),
+  `getParentDueDate`. Multi-statement writes use `db.transaction`.
 - **Server Actions** `src/app/dashboard/opus/actions.ts`: every mutation runs
-  `requireWriteAccess()` then the Opus authz helpers in `src/lib/opus/permissions.ts`
-  (`canManageDomain`, `canEditTask`, `manageableDomains` — these compute the manager set
-  `lead`/`co-lead`/`associate lead` from `ctx.roleIds`, since `ctx.isDomainLead` excludes
-  associate leads). Input validated with Zod incl. referential integrity (status/priority/
-  label/assignee must belong to the task's domain). Due date is server-enforced future-only.
+  `requireWriteAccess(permission)` then the domain check from `src/lib/opus/permissions.ts`
+  — thin wrappers over `canIn`: `canManageDomain` (`opus.task.manage`), `canManageConfig`
+  (`opus.config.manage`), `manageableDomains` (`domainsWith(opus.config.manage)`),
+  `canChangeTaskStatus` (manager, or `opus.task.status.own` + assigned). Input validated
+  with Zod incl. referential integrity (status/priority/label/assignee must belong to the
+  task's domain). Due date is server-enforced future-only; subtasks inherit the parent's due
+  date and one-level nesting is enforced here. `loadTaskDetailAction` (read) needs only an
+  approved member. Writes call `revalidateBoard`/`revalidateManage`, which also emit
+  `notifyRealtime({ scope: "opus-board", domain })`.
 - **Client UI** (`_components/`, shadcn + `@dnd-kit`): `kanban-board` (DnD columns, optimistic
-  move), `task-card`, `task-detail-dialog`, `task-fields-dialog` (create/edit + nested
+  move; also hosts the **board ⇄ table** view toggle and local drafts), `task-table` (table
+  view), `task-card`, `task-detail-dialog`, `task-fields-dialog` (create/edit + nested
   subtasks), `assignee-picker`/`label-picker` (Command combobox), `due-date-picker`,
-  `manage-client`, `status-icon` (the progress ring).
+  `manage-client`, `status-icon` (progress ring), `priority-icon` (bars), `types.ts`.
+- **Client hooks** `src/lib/opus/`: `use-persisted-view.ts` (board/table choice in
+  `localStorage`, per browser) and `use-task-drafts.ts` (unsent create-task drafts +
+  staged subtasks kept in `localStorage`, per domain).
 - **Shared presentation** `src/lib/opus/format.ts` (client-safe, no DB imports):
-  `domainIcons` (per-domain lucide icon, also used by `src/app/dashboard/page.tsx`),
-  `formatDomain`, `isDomainId`, priority/label/due-date helpers, and the status helpers
-  `isStatusClosed` / `isCancelledStatus` / `statusFraction` (consumed by `StatusIcon`,
-  `kanban-board`, `task-detail-dialog`).
+  `DOMAIN_IDS`, `domainIcons` (per-domain lucide icon, also used by
+  `src/app/dashboard/page.tsx`), `formatDomain`, `isDomainId`, `initials`, `priorityBars`,
+  `statusFraction`, `isStatusClosed`, `isOverdue`, `formatDueDate`, `labelTextColor`.
 
 ### Canon
 
@@ -266,3 +408,36 @@ Past by IST date), event page `[id]/page.tsx`, server actions `actions.ts`.
 - **Realtime** — every write emits `notifyRealtime({ scope: "canon" })`; both pages mount
   `<Refresher scope="canon"/>`. The editor keeps its draft in state, so a refresh never clobbers
   in-progress edits; it shows a stale warning instead.
+
+### Realtime
+
+App-wide live updates. The signal says only *what changed*, never row data: clients re-fetch
+the current route's RSC payload.
+
+```
+Server Action write → revalidatePath → notifyRealtime(evt)      src/lib/realtime/notify.ts
+  → pg NOTIFY on channel `fc_realtime`                           src/lib/realtime/pg-driver.ts
+  → process-wide hub (one LISTEN, globalThis-guarded)            src/lib/realtime/server.ts
+  → SSE GET /api/realtime (nodejs, force-dynamic,
+     approved members only, `: ping` heartbeat every 25 s)       src/app/api/realtime/route.ts
+  → one EventSource("/api/realtime") per tab, 250 ms debounce    src/components/realtime/realtime-provider.tsx
+  → router.refresh()                                             useRealtimeEvent / <Refresher>
+```
+
+- **Events** (`RealtimeEvent`): `{ scope: "opus-board", domain }`, `{ scope: "member" }`,
+  `{ scope: "bug-report" }`, `{ scope: "canon" }`, `{ scope: "forum" }`. Adding a scope = extend the union, emit
+  it from the action, listen for it on the page.
+- **Emitters**: Opus `revalidateBoard`/`revalidateManage`; member-requests, member-directory,
+  profile and roles-grid actions (`member`); bug-reports (`bug-report`); Canon (`canon`);
+  Forum actions + finished invite batches (`forum`).
+  Call `notifyRealtime` **after** the write + `revalidatePath`.
+- **Listeners**: `RealtimeProvider` wraps the dashboard shell (so the layout's sidebar badge
+  stays live). Server-rendered pages with no client router of their own mount
+  `<Refresher scope=… [domain=…]/>` (Opus overview, Member Directory, Member Requests, Bug
+  Reports, both Canon pages, both Forum pages); client components use `useRealtimeEvent(predicate, handler)`.
+- The EventSource URL is same-origin relative — no env var; works on localhost and behind
+  the tunnel.
+- **All driver-specific LISTEN/NOTIFY lives in `pg-driver.ts`**, reusing the `client`
+  exported from `db.ts`. postgres-js owns a dedicated listen connection and auto-reconnects
+  + re-LISTENs. A future neon-serverless failback needs a manual reconnect loop there and
+  nowhere else (`future-architecture.md`).
