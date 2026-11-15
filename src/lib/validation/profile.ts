@@ -72,6 +72,23 @@ const linkSchema = z.string().transform((value, ctx) => {
   return url;
 });
 
+export const quoteSchema = z
+  .string()
+  .trim()
+  .max(QUOTE_MAX, `Quote must be ${QUOTE_MAX} characters or fewer`)
+  .transform((q) => (q === "" ? null : q));
+
+export const linksSchema = z
+  .array(z.string())
+  // Blank rows in the form are just unused slots.
+  .transform((links) => links.filter((l) => l.trim() !== ""))
+  .pipe(
+    z
+      .array(linkSchema)
+      .max(LINKS_MAX_EXTENDED, `You can add up to ${LINKS_MAX_EXTENDED} links`),
+  )
+  .transform((links) => [...new Set(links)]);
+
 export const profileDetailsSchema = z.object({
   phone: phoneSchema,
   dateOfBirth: z.iso
@@ -79,27 +96,20 @@ export const profileDetailsSchema = z.object({
     .refine((d) => new Date(d) < new Date(), {
       message: "Date of birth must be in the past",
     }),
-  quote: z
-    .string()
-    .trim()
-    .max(QUOTE_MAX, `Quote must be ${QUOTE_MAX} characters or fewer`)
-    .transform((q) => (q === "" ? null : q)),
-  links: z
-    .array(z.string())
-    // Blank rows in the form are just unused slots.
-    .transform((links) => links.filter((l) => l.trim() !== ""))
-    .pipe(
-      z
-        .array(linkSchema)
-        .max(
-          LINKS_MAX_EXTENDED,
-          `You can add up to ${LINKS_MAX_EXTENDED} links`,
-        ),
-    )
-    .transform((links) => [...new Set(links)]),
+  quote: quoteSchema,
+  links: linksSchema,
 });
 
 export type ProfileDetailsInput = z.input<typeof profileDetailsSchema>;
+
+// The optional extras offered during onboarding (quote + links; the picture
+// goes through `uploadAvatar`).
+export const profileExtrasSchema = z.object({
+  quote: quoteSchema,
+  links: linksSchema,
+});
+
+export type ProfileExtrasInput = z.input<typeof profileExtrasSchema>;
 
 /** "+919876543210" → "+91 98765 43210"; anything not canonical is shown as-is. */
 export function formatPhone(phone: string): string {

@@ -10,6 +10,7 @@ import {
 import { EVENT_STATUSES, type EventStatus } from "@/lib/canon/constants";
 import { canEditEvent, canManageCanon } from "@/lib/canon/permissions";
 import { eventSaveSchema } from "@/lib/canon/schema";
+import { isUniqueViolation } from "@/lib/db/errors";
 import { notifyRealtime } from "@/lib/realtime/notify";
 import {
   approvedProfileIds,
@@ -150,12 +151,6 @@ const categoryName = z
   .trim()
   .min(1, "Name is required.")
   .max(40, "Keep it under 40 characters.");
-
-const isUniqueViolation = (e: unknown) =>
-  typeof e === "object" &&
-  e !== null &&
-  ((e as { code?: string }).code === "23505" ||
-    (e as { cause?: { code?: string } }).cause?.code === "23505");
 
 export async function addCategory(name: string): Promise<ActionResult> {
   const ctx = await requireGlobalWriteAccess("canon.event.manage");
