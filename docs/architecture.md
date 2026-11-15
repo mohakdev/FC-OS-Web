@@ -29,15 +29,31 @@ OTP send and on user creation.
   response. `/onboarding` and `/pending` are deliberately excluded and self-guard at the
   page level.
 - `src/app/login`, `src/app/onboarding` (form + `actions.ts` → `onboardProfile`),
-  `src/app/pending` — the pre-dashboard pages.
+  `src/app/onboarding/details`, `src/app/pending` — the pre-dashboard pages.
+- **Onboarding is 2 steps.** Step 1 (`/onboarding`): name, phone (`phoneSchema`, Indian
+  10-digit → `+91…`), **RA number** (`raNumberSchema`: `RA` + 13 digits, trimmed +
+  uppercased, `profiles.ra_number` UNIQUE), DOB, gender, domains → creates the pending
+  profile. Step 2 (`/onboarding/details`): optional picture, quote, links (Skip / Finish)
+  → `/pending`. RA/phone collisions get specific messages (pre-check + 23505 race via
+  `uniqueViolationConstraint` in `src/lib/db/errors.ts`); errors never echo an ID.
 - `src/lib/auth/context.ts` — `getAuthState()` / `getAccessContext()` resolve the
   `AuthState` (`unauthenticated` | `no-profile` | `active` + `AccessContext`) from the
   session joined to `profiles` + `user_roles`.
 
 The **two-stage gate**: (1) `proxy.ts` blocks anonymous traffic; (2) `dashboard/layout.tsx`
 enforces the state machine — `no-profile` → `/onboarding`, status ≠ `approved` →
-`/pending`. New members land in `pending_approval`; an approver decides via
-**Member Requests**.
+`/pending`, `needsRaNumber(ctx)` → `/onboarding/details`. New members land in
+`pending_approval`; an approver decides via **Member Requests**.
+
+**RA gate** (`needsRaNumber` in `src/lib/auth/context.ts`): approved **and** no RA **and**
+the member's *real* grants are non-empty. Read-only roles (advisor / alumni — derived as
+"holds zero permissions", same rule as `checkExclusiveReadOnlyRole`) are exempt; real
+grants so "view as" never triggers/skips it. The same `/onboarding/details` screen then
+asks RA (required, prefilled extras, no Skip) once. `completeOwnProfileDetails` writes the
+RA only `WHERE ra_number IS NULL` — members can never change it. Only `member.ra.edit`
+(global; superadmin by default) can replace it, from the Member Directory sheet
+(`updateMemberRa`; replace only, never clear). RA is visible to all approved members
+(directory sheet + search, own profile, Member Requests rows).
 
 > **CRITICAL**: any RSC / Server Action / Route Handler that calls `auth.api.getSession()`
 > (directly or via `getAuthState`) **must** set `export const dynamic = "force-dynamic"`.
@@ -173,6 +189,10 @@ real grants (`intersectGrants`) so a switch can only narrow. `realGrants` (switc
   (`holdsSuperadmin`), so it doesn't change under "view as".
 - Links store only the URL; icon + label come from the hostname at render time
   (`src/lib/profile/links.ts`). Unknown hosts (personal sites) → globe + bare hostname.
+- Avatar / quote / links editors are shared components in `src/components/profile/`
+  (used by the Customize dialog and `/onboarding/details`). `uploadAvatar` / `removeAvatar`
+  accept a **pending** applicant too (own profile only, not rejected), and the avatar
+  route always serves a member their own picture.
 - Avatars: client crops (react-easy-crop) → server re-encodes with sharp to 512px webp →
   private S3-compatible bucket via `src/lib/storage/s3.ts` (env `S3_ENDPOINT`,
   `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_BUCKET`, optional `S3_REGION`). Browsers never hit

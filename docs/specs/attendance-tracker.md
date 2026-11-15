@@ -79,6 +79,7 @@ multi-statement writes use `db.transaction(...)` — not the old `db.batch` (tha
 `docs/architecture.md` is stale).
 
 **`profiles` += `ra_number text unique`** (nullable in DB; app-enforced via the RA gate)
+— **BUILT 2026-11-15** (see `docs/architecture.md` `### Auth + onboarding/approval flow`).
 - Zod format: `RA` + 13 digits (`/^RA\d{13}$/`). Error message states the **format only**, never
   echoes an ID (pattern: `netIdSchema` in `src/lib/validation/onboarding.ts`).
 - Collected at onboarding (new field) and via the one-time RA gate for existing members.
@@ -113,7 +114,14 @@ multi-statement writes use `db.transaction(...)` — not the old `db.batch` (tha
 - volunteering kinds → **no roster** (bonus only, never absence).
 - Known limit: `user_roles` has no history, so a domain-switcher is judged against their current domain.
 
-## 5. RA gate (one-time, blocking)
+## 5. RA gate (one-time, blocking) — BUILT 2026-11-15
+
+> As built: route is `/onboarding/details` (not `/onboarding/ra`) and also hosts the optional
+> picture/quote/links; advisor/alumni (zero real grants) are **exempt** — this overrides
+> "RA required for all" in decision 2; pending applicants are not asked (caught after
+> approval); members can't change their RA, `member.ra.edit` (superadmin) can replace it.
+> The text below is the original design.
+
 - `src/app/dashboard/layout.tsx` already redirects `no-profile → /onboarding` and `!approved →
   /pending`. Add: approved **and** `ra_number IS NULL` → `redirect("/onboarding/ra")`.
 - The new page reuses the onboarding form pattern (plain `useState` + `useTransition` → server
