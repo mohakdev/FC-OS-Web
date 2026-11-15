@@ -3,21 +3,24 @@
 // `mailLater` in app/dashboard/forum/actions.ts), so the action responds
 // immediately and mail goes out behind it.
 //
-// Idempotent by construction: recipients are the audience MINUS everyone who
-// already has a `forum_invites` row for this (kind, revision), and a row is
-// written only after that member's mail was accepted by SMTP. A retry, a
-// double-click or a crash halfway through therefore never double-mails, and the
-// "Send invites" button simply finishes the job.
+// Idempotent by construction: each member's `forum_invites` row for this
+// (kind, revision) is CLAIMED (atomic insert) before their mail is sent and
+// released again if SMTP rejects it. Overlapping runs (a double-click, "Send
+// invites" during the first run) therefore never double-mail, and the "Send
+// invites" button simply finishes the job. Trade-off: a crash between claim and
+// send loses that one member's mail (logged as sent) — rare, and far better
+// than mailing the whole audience twice.
 
 import { APP_URL, MAIL_FROM, MAIL_FROM_ADDRESS, mailer } from "@/lib/mail";
 import { notifyRealtime } from "@/lib/realtime/notify";
 import {
   type AudienceMember,
+  claimInvite,
   type EventRow,
   getEvent,
   getEventAudience,
   type InviteKind,
-  recordInvites,
+  releaseInvite,
   sentProfileIds,
 } from "@/utils/forumDbActions";
 import { formatWhen, kindLabel } from "./format";
@@ -115,8 +118,15 @@ export async function sendEventMail(
     MAIL_FROM_ADDRESS,
   );
 
-  for (const [i, member] of recipients.entries()) {
-    if (i > 0) await sleep(SEND_GAP_MS);
+  let attempted = 0;
+  for (const member of recipients) {
+    const key = { eventId, profileId: member.id, kind, revision };
+    // Claim first: an overlapping run that already took this member skips it.
+    if (!(await claimInvite(key))) {
+      summary.skipped++;
+      continue;
+    }
+    if (attempted++ > 0) await sleep(SEND_GAP_MS);
     const { subject, text } = compose(event, kind, member);
     try {
       await mailer.sendMail({
@@ -130,11 +140,10 @@ export async function sendEventMail(
           content: ics,
         },
       });
-      // Log per message, so a crash mid-batch loses at most one row.
-      await recordInvites([{ eventId, profileId: member.id, kind, revision }]);
       summary.sent++;
     } catch (cause) {
       summary.failed++;
+      await releaseInvite(key).catch(() => {});
       console.error(
         `[forum] ${kind} mail to profile ${member.id} for event ${eventId} failed:`,
         cause,

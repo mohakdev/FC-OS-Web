@@ -338,15 +338,38 @@ export const deleteEvent = async (id: string) => {
   await db.delete(forumEvents).where(eq(forumEvents.id, id));
 };
 
-/** Logs sent emails. The composite PK makes a duplicate insert a no-op. */
-export const recordInvites = async (
-  rows: {
-    eventId: string;
-    profileId: string;
-    kind: InviteKind;
-    revision: number;
-  }[],
-) => {
-  if (rows.length === 0) return;
-  await db.insert(forumInvites).values(rows).onConflictDoNothing();
+type InviteKey = {
+  eventId: string;
+  profileId: string;
+  kind: InviteKind;
+  revision: number;
+};
+
+/**
+ * Claims the right to send one email: inserts its log row and reports whether
+ * THIS caller won it. The composite PK makes the insert atomic, so of two
+ * overlapping send runs (a double-click, or "Send invites" during the initial
+ * run) exactly one gets `true` per member — nobody is mailed twice.
+ */
+export const claimInvite = async (key: InviteKey): Promise<boolean> => {
+  const rows = await db
+    .insert(forumInvites)
+    .values(key)
+    .onConflictDoNothing()
+    .returning({ profileId: forumInvites.profileId });
+  return rows.length > 0;
+};
+
+/** Gives a claim back after SMTP rejected the mail, so a retry can send it. */
+export const releaseInvite = async (key: InviteKey) => {
+  await db
+    .delete(forumInvites)
+    .where(
+      and(
+        eq(forumInvites.eventId, key.eventId),
+        eq(forumInvites.profileId, key.profileId),
+        eq(forumInvites.kind, key.kind),
+        eq(forumInvites.revision, key.revision),
+      ),
+    );
 };
