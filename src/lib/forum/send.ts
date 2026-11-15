@@ -26,12 +26,8 @@ import {
 import { formatWhen, kindLabel } from "./format";
 import { buildIcs } from "./ics";
 
-/**
- * Pause between messages. Resend's SMTP relay rate-limits bursts (a few per
- * second); staying under it keeps a full-team invite from failing midway.
- */
-const SEND_GAP_MS = 600;
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+// Pacing lives in the pooled transport (`src/lib/mail.ts`, SMTP_RATE_PER_SEC):
+// one app-wide rate limit, so overlapping runs can't add up past it.
 
 export type SendSummary = { sent: number; failed: number; skipped: number };
 
@@ -146,9 +142,7 @@ export async function sendEventMail(
   };
   let ics = icsFor(current, kind);
 
-  let attempted = 0;
   for (const member of recipients) {
-    if (attempted > 0) await sleep(SEND_GAP_MS);
     // Re-read right before sending: stop on cancel/start/supersede, refresh on edit.
     event = await getEvent(eventId);
     stopped = stopReason(event, kind, revision);
@@ -164,7 +158,6 @@ export async function sendEventMail(
       summary.skipped++;
       continue;
     }
-    attempted++;
     const { subject, text } = compose(current, kind, member);
     try {
       await mailer.sendMail({
