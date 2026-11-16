@@ -227,10 +227,12 @@ export function MeetingDialog(props: Props) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>{props.children}</DialogTrigger>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
+      {/* Capped to the dynamic viewport (mobile browser bars included): the
+          header and footer stay put and only the fields scroll. */}
+      <DialogContent className="flex max-h-[90dvh] flex-col gap-0 p-0 sm:max-w-lg">
+        <DialogHeader className="px-4 pt-4 pb-3 pr-10">
           <DialogTitle>{editing ? "Edit meeting" : "New meeting"}</DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-pretty">
             {editing
               ? "Changing the time, venue or title can email everyone who was invited."
               : "The audience is worked out from who's in the club or domain right now. Leadership is invited to every domain and associate-leads meeting."}
@@ -238,142 +240,154 @@ export function MeetingDialog(props: Props) {
         </DialogHeader>
 
         <form
-          className="flex flex-col gap-4"
+          className="flex min-h-0 flex-1 flex-col"
           onSubmit={(e) => {
             e.preventDefault();
             submit();
           }}
         >
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="forum-audience">Who's it for</Label>
-            <Select
-              value={form.audience}
-              onValueChange={(v) => set("audience", v as Audience)}
-              disabled={editing || pending}
-            >
-              <SelectTrigger id="forum-audience" className="w-full">
-                <SelectValue placeholder="Pick an audience" />
-              </SelectTrigger>
-              <SelectContent>
-                {audienceChoices.map((c) => (
-                  <SelectItem key={c.value} value={c.value}>
-                    {c.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="forum-title">Title</Label>
-            <Input
-              id="forum-title"
-              value={form.title}
-              maxLength={TITLE_MAX}
-              placeholder="Weekly sync"
-              onChange={(e) => set("title", e.target.value)}
-              disabled={pending}
-              required
-            />
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-[1fr_auto_auto]">
+          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 pt-1 pb-4">
             <div className="flex flex-col gap-2">
-              <Label>Date</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={pending}
-                    className={cn(
-                      "justify-start font-normal",
-                      !form.date && "text-muted-foreground",
-                    )}
-                  >
-                    <CalendarIcon className="size-4" />
-                    {form.date
-                      ? formatDate(istToDate(form.date, "12:00") ?? new Date())
-                      : "Pick a day"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={form.date ? dateOfDay(form.date) : undefined}
-                    onSelect={(d) => set("date", d ? dayOf(d) : "")}
-                    disabled={(d) => dayOf(d) < todayIST}
-                    autoFocus
-                  />
-                </PopoverContent>
-              </Popover>
+              <Label htmlFor="forum-audience">Who's it for</Label>
+              <Select
+                value={form.audience}
+                onValueChange={(v) => set("audience", v as Audience)}
+                disabled={editing || pending}
+              >
+                <SelectTrigger id="forum-audience" className="w-full">
+                  <SelectValue placeholder="Pick an audience" />
+                </SelectTrigger>
+                <SelectContent>
+                  {audienceChoices.map((c) => (
+                    <SelectItem key={c.value} value={c.value}>
+                      {c.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
+
             <div className="flex flex-col gap-2">
-              <Label htmlFor="forum-start">Starts</Label>
+              <Label htmlFor="forum-title">Title</Label>
               <Input
-                id="forum-start"
-                type="time"
-                value={form.startTime}
-                onChange={(e) => set("startTime", e.target.value)}
+                id="forum-title"
+                value={form.title}
+                maxLength={TITLE_MAX}
+                placeholder="Weekly sync"
+                onChange={(e) => set("title", e.target.value)}
                 disabled={pending}
                 required
               />
             </div>
+
+            {/* Phones: date full width, start + end side by side. sm+: one row. */}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
+              <div className="col-span-2 flex flex-col gap-2 sm:col-span-1">
+                <Label>Date</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={pending}
+                      className={cn(
+                        "w-full justify-start font-normal",
+                        !form.date && "text-muted-foreground",
+                      )}
+                    >
+                      <CalendarIcon className="size-4" />
+                      {form.date
+                        ? formatDate(
+                            istToDate(form.date, "12:00") ?? new Date(),
+                          )
+                        : "Pick a day"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    className="w-auto p-0"
+                    align="start"
+                    collisionPadding={16}
+                  >
+                    <Calendar
+                      mode="single"
+                      selected={form.date ? dateOfDay(form.date) : undefined}
+                      onSelect={(d) => set("date", d ? dayOf(d) : "")}
+                      disabled={(d) => dayOf(d) < todayIST}
+                      autoFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="forum-start">Starts</Label>
+                <Input
+                  id="forum-start"
+                  type="time"
+                  className="w-full"
+                  value={form.startTime}
+                  onChange={(e) => set("startTime", e.target.value)}
+                  disabled={pending}
+                  required
+                />
+              </div>
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="forum-end">Ends</Label>
+                <Input
+                  id="forum-end"
+                  type="time"
+                  className="w-full"
+                  value={form.endTime}
+                  onChange={(e) => set("endTime", e.target.value)}
+                  disabled={pending}
+                />
+              </div>
+            </div>
+            <p className="-mt-2 text-xs text-muted-foreground">
+              Times are in IST.
+            </p>
+
             <div className="flex flex-col gap-2">
-              <Label htmlFor="forum-end">Ends</Label>
+              <Label htmlFor="forum-venue">Venue</Label>
               <Input
-                id="forum-end"
-                type="time"
-                value={form.endTime}
-                onChange={(e) => set("endTime", e.target.value)}
+                id="forum-venue"
+                value={form.venue}
+                maxLength={VENUE_MAX}
+                placeholder="TP 401, or a meet link"
+                onChange={(e) => set("venue", e.target.value)}
                 disabled={pending}
               />
             </div>
-          </div>
-          <p className="-mt-2 text-xs text-muted-foreground">
-            Times are in IST.
-          </p>
 
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="forum-venue">Venue</Label>
-            <Input
-              id="forum-venue"
-              value={form.venue}
-              maxLength={VENUE_MAX}
-              placeholder="TP 401, or a meet link"
-              onChange={(e) => set("venue", e.target.value)}
-              disabled={pending}
-            />
-          </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="forum-description">Agenda</Label>
+              <Textarea
+                id="forum-description"
+                value={form.description}
+                maxLength={DESCRIPTION_MAX}
+                rows={3}
+                className="min-h-20 resize-y"
+                placeholder="What's this meeting about?"
+                onChange={(e) => set("description", e.target.value)}
+                disabled={pending}
+              />
+            </div>
 
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="forum-description">Agenda</Label>
-            <Textarea
-              id="forum-description"
-              value={form.description}
-              maxLength={DESCRIPTION_MAX}
-              rows={4}
-              placeholder="What's this meeting about?"
-              onChange={(e) => set("description", e.target.value)}
-              disabled={pending}
-            />
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="forum-notify"
-              checked={form.notify}
-              onCheckedChange={(v) => set("notify", v === true)}
-              disabled={pending}
-            />
-            <Label htmlFor="forum-notify" className="font-normal">
-              {editing
-                ? "Email invitees if the time, venue or title changes"
-                : "Email invites to the audience"}
-            </Label>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="forum-notify"
+                checked={form.notify}
+                onCheckedChange={(v) => set("notify", v === true)}
+                disabled={pending}
+              />
+              <Label htmlFor="forum-notify" className="font-normal">
+                {editing
+                  ? "Email invitees if the time, venue or title changes"
+                  : "Email invites to the audience"}
+              </Label>
+            </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="mx-0 mb-0 shrink-0">
             <Button
               type="button"
               variant="ghost"
