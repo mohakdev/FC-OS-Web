@@ -27,7 +27,7 @@ export default async function ForumPage() {
         <div>
           <h1 className="font-serif text-7xl text-primary">Forum</h1>
           <p className="text-sm text-muted-foreground">
-            Every meeting and event the club holds.
+            Every meeting the club holds.
           </p>
         </div>
         {canCreateAny(options) && (
