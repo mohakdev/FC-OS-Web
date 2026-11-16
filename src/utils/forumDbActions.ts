@@ -14,7 +14,7 @@ import { roles } from "../database/schemas/roles";
 import { userRoles } from "../database/schemas/user_roles";
 import { SUPERADMIN_ROLE } from "../lib/auth/catalog";
 import { getRoleScopes, grantsForRoles } from "../lib/auth/roles";
-import type { EventKind, EventStatus } from "../lib/forum/constants";
+import type { EventStatus, MeetingKind } from "../lib/forum/constants";
 import type { MeetingValues } from "../lib/forum/schema";
 import { DOMAIN_IDS, type DomainId, isDomainId } from "../lib/opus/format";
 
@@ -24,12 +24,12 @@ export type EventPerson = { id: string; firstName: string; lastName: string };
 
 export type EventRow = {
   id: string;
-  kind: EventKind;
+  kind: MeetingKind;
   domain: DomainId | null;
   title: string;
   description: string;
   venue: string | null;
-  startsAt: Date | null;
+  startsAt: Date;
   endsAt: Date | null;
   status: EventStatus;
   revision: number;
@@ -127,7 +127,6 @@ export const getEvent = async (id: string): Promise<EventRow | null> => {
  *                    PLUS leadership (anyone holding a global-scoped role), who
  *                    are invited to every domain's meetings
  *   club_meeting   → every approved member
- *   external       → nobody yet (volunteers arrive with Forum P2)
  *
  * A row only qualifies through a role that grants at least one permission, so
  * read-only roles (advisor / alumni — global, but grant nothing) are never
@@ -137,10 +136,9 @@ export const getEvent = async (id: string): Promise<EventRow | null> => {
  * also a lead/president is expected through that role.
  */
 export const getEventAudience = async (event: {
-  kind: EventKind;
+  kind: MeetingKind;
   domain: DomainId | null;
 }): Promise<AudienceMember[]> => {
-  if (event.kind === "external") return [];
   if (event.kind === "domain_meeting" && !event.domain) return [];
 
   const grantingRole = and(

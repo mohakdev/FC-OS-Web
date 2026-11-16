@@ -246,21 +246,21 @@ real grants (`intersectGrants`) so a switch can only narrow. `realGrants` (switc
 
 ### Forum
 
-Events tool at `/dashboard/forum` — every meeting and event the club holds, and the table
-future features hang off (volunteers, registrations, the Canon page, attendance). Built in
-phases (P1 meetings + invites ✅ · P2 external events + Canon link + volunteers · P3
-registrations + CSV import). Everything follows the tool-prefix convention: tables / enums
-`forum_*`, permissions `forum.*`, code in `src/lib/forum/` + `src/utils/forumDbActions.ts`,
-realtime scope `forum`.
+Internal club meetings at `/dashboard/forum`: domain meetings and full-team meetings, with
+email invites. **Forum is internal-only.** External events (Ideathon, Hackathon, InterClub,
+…) are planned in **Canon** (`### Canon`), which already has its own categories, and the two
+tools are not linked. When the Attendance Tracker is built, meeting attendance will reference
+`forum_events`. Everything follows the tool-prefix convention: tables / enums `forum_*`,
+permissions `forum.*`, code in `src/lib/forum/` + `src/utils/forumDbActions.ts`, realtime
+scope `forum`.
 
 - **Schema** `src/database/schemas/forum_events.ts`: `forum_events` (`kind` =
-  `domain_meeting | club_meeting | external`, `domain` set **iff** domain meeting — CHECK
-  `forum_events_domain_kind_check`; title ≤80, description, venue, `starts_at`/`ends_at`
-  timestamptz (nullable only for undated external events; meetings always have one),
-  `status` `scheduled | cancelled`, `revision`, created/updated at+by). `revision` bumps on
-  every change the audience should hear about (title, time, venue, cancel) and is the
-  iCalendar SEQUENCE. `forum_invites.ts`: a log of sent mail, PK
-  `(event_id, profile_id, kind, revision)`.
+  `domain_meeting | club_meeting`, `domain` set **iff** domain meeting — CHECK
+  `forum_events_domain_kind_check`; title ≤80, description, venue, `starts_at` (required) /
+  `ends_at` timestamptz with `ends_at > starts_at`, `status` `scheduled | cancelled`,
+  `revision`, created/updated at+by). `revision` bumps on every change the audience should
+  hear about (title, time, venue, cancel) and is the iCalendar SEQUENCE.
+  `forum_invites.ts`: a log of sent mail, PK `(event_id, profile_id, kind, revision)`.
 - **Audience is derived, never stored** (`getEventAudience` in `src/utils/forumDbActions.ts`):
   - domain meeting → approved members with a `user_roles` row in that domain **plus
     leadership** — anyone holding a granting `global`-scoped role (president / VP / HRM) is

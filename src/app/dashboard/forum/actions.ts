@@ -7,7 +7,7 @@ import {
   requireGlobalWriteAccess,
   requireWriteAccess,
 } from "@/lib/auth/context";
-import type { EventKind } from "@/lib/forum/constants";
+import type { MeetingKind } from "@/lib/forum/constants";
 import {
   canManageEvent,
   FORUM_CLUB_MANAGE,
@@ -57,17 +57,13 @@ function mailLater(eventId: string, kind: "invite" | "update" | "cancel") {
  * standard guards (so view-as writes are logged like everywhere else):
  *   club_meeting   → `requireGlobalWriteAccess` — org-wide, no domain to narrow to
  *   domain_meeting → `requireWriteAccess` precheck, then `canIn` for THAT domain
- *   external       → not manageable until Forum P2
  */
 async function requireEventManager(event: {
-  kind: EventKind;
+  kind: MeetingKind;
   domain: string | null;
 }): Promise<AccessContext | { error: string }> {
   if (event.kind === "club_meeting") {
     return requireGlobalWriteAccess(FORUM_CLUB_MANAGE);
-  }
-  if (event.kind !== "domain_meeting") {
-    return { error: "You are not allowed to manage this event." };
   }
   const ctx = await requireWriteAccess(FORUM_DOMAIN_MANAGE);
   if ("error" in ctx) return ctx;
@@ -181,7 +177,7 @@ export async function sendInvitesAction(
   if (current.status !== "scheduled") {
     return { error: "This meeting is cancelled." };
   }
-  if (!current.startsAt || current.startsAt.getTime() <= Date.now()) {
+  if (current.startsAt.getTime() <= Date.now()) {
     return { error: "This meeting has already started." };
   }
   mailLater(eventId, "invite");

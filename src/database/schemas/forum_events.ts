@@ -13,16 +13,14 @@ import {
 import { domains, domainsEnum } from "./domains";
 import { profiles } from "./profiles";
 
-// What kind of gathering an event is. The kind (+ `domain`) decides who is
-// expected — the audience is derived on read, never stored (see
-// `getEventAudience` in utils/forumDbActions.ts):
-//   domain_meeting → members of `domain`
+// Forum is for INTERNAL club meetings only — external events live in Canon.
+// The kind (+ `domain`) decides who is expected; the audience is derived on
+// read, never stored (see `getEventAudience` in utils/forumDbActions.ts):
+//   domain_meeting → members of `domain` + leadership
 //   club_meeting   → every approved, non-read-only member ("full-team meet")
-//   external       → volunteers + registrations (Forum P2/P3; has a Canon page)
 export const forumEventKindEnum = pgEnum("forum_event_kind", [
   "domain_meeting",
   "club_meeting",
-  "external",
 ]);
 
 export const forumEventStatusEnum = pgEnum("forum_event_status", [
@@ -30,8 +28,8 @@ export const forumEventStatusEnum = pgEnum("forum_event_status", [
   "cancelled",
 ]);
 
-// Forum's core table — the one row every event-shaped feature hangs off:
-// invites today; volunteers, registrations, the Canon page and attendance later.
+// One row per internal meeting. Invites hang off it today; attendance will
+// reference it when the Attendance Tracker is built.
 export const forumEvents = pgTable(
   "forum_events",
   {
@@ -44,9 +42,7 @@ export const forumEvents = pgTable(
     title: varchar("title", { length: 80 }).notNull(),
     description: text("description").notNull().default(""),
     venue: text("venue"),
-    // Nullable only so an external event can exist before its date is known;
-    // meetings always have one (enforced in lib/forum/schema.ts).
-    startsAt: timestamp("starts_at", { withTimezone: true }),
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
     endsAt: timestamp("ends_at", { withTimezone: true }),
     status: forumEventStatusEnum("status").notNull().default("scheduled"),
     // Bumped on every change the audience should hear about (time, venue,
@@ -72,7 +68,7 @@ export const forumEvents = pgTable(
     ),
     check(
       "forum_events_time_order_check",
-      sql`${t.endsAt} IS NULL OR ${t.startsAt} IS NULL OR ${t.endsAt} > ${t.startsAt}`,
+      sql`${t.endsAt} IS NULL OR ${t.endsAt} > ${t.startsAt}`,
     ),
     index("forum_events_starts_at_idx").on(t.startsAt),
   ],

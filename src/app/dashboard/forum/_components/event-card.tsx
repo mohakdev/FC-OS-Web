@@ -8,17 +8,17 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import type { EventKind, EventStatus } from "@/lib/forum/constants";
+import type { EventStatus, MeetingKind } from "@/lib/forum/constants";
 import { formatWhen, kindLabel } from "@/lib/forum/format";
 import { cn } from "@/lib/utils";
 
 export type EventCardData = {
   id: string;
-  kind: EventKind;
+  kind: MeetingKind;
   domain: string | null;
   title: string;
   venue: string | null;
-  startsAt: Date | null;
+  startsAt: Date;
   endsAt: Date | null;
   status: EventStatus;
 };

@@ -1,24 +1,17 @@
 // Forum constants. Client-safe (no DB imports). Mirrors the enums in
-// src/database/schemas/events.ts — keep the two in sync.
+// src/database/schemas/forum_events.ts — keep the two in sync.
+//
+// Forum is for internal club meetings only; external events live in Canon.
 
-export const EVENT_KINDS = [
-  "domain_meeting",
-  "club_meeting",
-  "external",
-] as const;
-export type EventKind = (typeof EVENT_KINDS)[number];
-
-/** Kinds Forum can create today. `external` arrives with Forum P2 (Canon link). */
 export const MEETING_KINDS = ["domain_meeting", "club_meeting"] as const;
 export type MeetingKind = (typeof MEETING_KINDS)[number];
 
 export const EVENT_STATUSES = ["scheduled", "cancelled"] as const;
 export type EventStatus = (typeof EVENT_STATUSES)[number];
 
-export const EVENT_KIND_LABELS: Record<EventKind, string> = {
+export const MEETING_KIND_LABELS: Record<MeetingKind, string> = {
   domain_meeting: "Domain meeting",
   club_meeting: "Full-team meeting",
-  external: "External event",
 };
 
 export const TITLE_MAX = 80;

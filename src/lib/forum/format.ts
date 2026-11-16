@@ -3,10 +3,10 @@
 
 import { formatDomain } from "@/lib/opus/format";
 import {
-  EVENT_KIND_LABELS,
-  type EventKind,
   FORUM_TZ,
   FORUM_UTC_OFFSET,
+  MEETING_KIND_LABELS,
+  type MeetingKind,
 } from "./constants";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -58,10 +58,9 @@ export function formatDate(at: Date): string {
 
 /**
  * `"Wed, 18 Nov 2026 · 05:30 PM – 07:00 PM"`. An end on a different IST day
- * gets its own date. No start → `"Date TBD"`.
+ * gets its own date.
  */
-export function formatWhen(startsAt: Date | null, endsAt: Date | null): string {
-  if (!startsAt) return "Date TBD";
+export function formatWhen(startsAt: Date, endsAt: Date | null): string {
   const start = `${formatDate(startsAt)} · ${formatTime(startsAt)}`;
   if (!endsAt) return start;
   const sameDay = toISTDate(startsAt) === toISTDate(endsAt);
@@ -70,26 +69,24 @@ export function formatWhen(startsAt: Date | null, endsAt: Date | null): string {
     : `${start} – ${formatDate(endsAt)} · ${formatTime(endsAt)}`;
 }
 
-/** `"Technical meeting"`, `"Full-team meeting"`, `"External event"`. */
-export function kindLabel(kind: EventKind, domain: string | null): string {
+/** `"Technical meeting"`, `"Full-team meeting"`. */
+export function kindLabel(kind: MeetingKind, domain: string | null): string {
   if (kind === "domain_meeting" && domain) {
     return `${formatDomain(domain)} meeting`;
   }
-  return EVENT_KIND_LABELS[kind];
+  return MEETING_KIND_LABELS[kind];
 }
 
 /**
- * Upcoming = not yet over (end, or start when there is no end). Undated events
- * count as upcoming. Upcoming sorts soonest-first, past most-recent-first.
+ * Upcoming = not yet over (end, or start when there is no end). Upcoming sorts
+ * soonest-first, past most-recent-first.
  */
-export function splitByTime<
-  T extends { startsAt: Date | null; endsAt: Date | null },
->(events: T[], now: Date = new Date()): { upcoming: T[]; past: T[] } {
-  const over = (e: T) => {
-    const at = e.endsAt ?? e.startsAt;
-    return at !== null && at.getTime() < now.getTime();
-  };
-  const time = (e: T) => e.startsAt?.getTime() ?? Number.POSITIVE_INFINITY;
+export function splitByTime<T extends { startsAt: Date; endsAt: Date | null }>(
+  events: T[],
+  now: Date = new Date(),
+): { upcoming: T[]; past: T[] } {
+  const over = (e: T) => (e.endsAt ?? e.startsAt).getTime() < now.getTime();
+  const time = (e: T) => e.startsAt.getTime();
   return {
     upcoming: events.filter((e) => !over(e)).sort((a, b) => time(a) - time(b)),
     past: events.filter(over).sort((a, b) => time(b) - time(a)),

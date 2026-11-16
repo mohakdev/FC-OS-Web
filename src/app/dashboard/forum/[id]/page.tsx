@@ -39,8 +39,7 @@ export default async function ForumEventPage({
   if (!ctx) redirect("/login");
 
   const event = await getEvent(id);
-  // External events arrive with Forum P2; until then only meetings render here.
-  if (!event || event.kind === "external" || !event.startsAt) notFound();
+  if (!event) notFound();
 
   const canManage = canManageEvent(ctx, event);
   const [audience, log] = await Promise.all([

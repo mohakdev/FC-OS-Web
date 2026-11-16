@@ -6,13 +6,14 @@
 
 **Status:** Spec · revised 2026-11-13 · nothing built yet.
 
-> **2026-11-15 — Forum changes the data model below.** Meetings now live in Forum's `forum_events`
-> table (`docs/architecture.md` `### Forum`): kinds `domain_meeting` / `club_meeting` /
-> `external`, audience derived from kind + domain. The `activity` / `attendance` stubs were
-> dropped. When this tracker is built, `attendance_sessions` (§4) becomes either `forum_events`
-> itself or an `event_sessions` child for multi-day events, and attendance splits into
-> `attendance` (members + volunteers, → `forum_events`) and a separate `external_attendance`
-> (→ Forum registrations). Session CRUD (§8 "New session") is Forum's job, not this tool's. Supersedes the 2026-10-26 draft
+> **2026-11-15 — Forum changes the data model below.** Internal meetings now live in Forum's
+> `forum_events` table (`docs/architecture.md` `### Forum`): kinds `domain_meeting` /
+> `club_meeting`, audience derived from kind + domain (leadership is expected at every domain
+> meeting). The `activity` / `attendance` stubs were dropped. When this tracker is built,
+> meeting sessions (§4 `attendance_sessions`) are `forum_events` rows and attendance references
+> them; creating meetings (§8 "New session") is Forum's job, not this tool's. External
+> events are Canon's, not Forum's, so any external-event / volunteer attendance would hang
+> off `canon_events` and stay separate from member meeting attendance. Supersedes the 2026-10-26 draft
 (`docs/attendance-tracker-spec.md`, now a pointer stub).
 
 ## Decisions behind this revision (2026-11-13)

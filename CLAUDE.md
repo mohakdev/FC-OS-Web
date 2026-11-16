@@ -9,8 +9,8 @@ internal club tool behind a single dashboard and auth/approval gate. Tools live 
 `src/app/dashboard/`: **MoM**, **Attendance Tracker**, **FC TV CMS**, **Performance
 Tracker**, **Member Directory** (approvers edit roles/domains + remove members),
 **Member Requests** (HRM admin), **Canon** (the club's single source of truth; v1 =
-event pages, see `### Canon` in `docs/architecture.md`), **Forum** (events: domain +
-full-team meetings with email invites; external events/registrations next — `### Forum`),
+event pages, see `### Canon` in `docs/architecture.md`), **Forum** (internal club meetings:
+domain + full-team, with email invites — `### Forum`; external events live in Canon),
 and **Opus** — the PM
 tool that is the current focus of active development. Users are
 club members.

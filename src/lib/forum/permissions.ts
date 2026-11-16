@@ -6,11 +6,10 @@
 //                    leadership holds it globally, so every domain.
 //   club_meeting   → `forum.club.manage` held GLOBALLY (`can`). Ticking it on a
 //                    domain-scoped role must not let a lead call a club meet.
-//   external       → not manageable until Forum P2 adds its permission.
 
 import { can, canIn, domainsWith, type Grants } from "@/lib/auth/permissions";
 import { DOMAIN_IDS, type DomainId } from "@/lib/opus/format";
-import type { EventKind } from "./constants";
+import type { MeetingKind } from "./constants";
 
 type Viewer = { grants: Grants };
 
@@ -20,7 +19,7 @@ export const FORUM_CLUB_MANAGE = "forum.club.manage" as const;
 /** Can the viewer create/edit/cancel/invite for an event of this kind + domain? */
 export const canManageEvent = (
   v: Viewer,
-  event: { kind: EventKind; domain: string | null },
+  event: { kind: MeetingKind; domain: string | null },
 ): boolean => {
   switch (event.kind) {
     case "domain_meeting":
@@ -30,8 +29,6 @@ export const canManageEvent = (
       );
     case "club_meeting":
       return can(v.grants, FORUM_CLUB_MANAGE);
-    case "external":
-      return false;
   }
 };
 

@@ -110,7 +110,7 @@ function compose(event: EventRow, kind: InviteKind, to: AudienceMember) {
 }
 
 /** The calendar attachment for `event` (REQUEST = new/updated, CANCEL = gone). */
-function icsFor(event: EventRow & { startsAt: Date }, kind: InviteKind) {
+function icsFor(event: EventRow, kind: InviteKind) {
   return buildIcs(
     {
       id: event.id,
@@ -136,7 +136,7 @@ function stopReason(
   kind: InviteKind,
   revision: number,
 ): string | null {
-  if (!event?.startsAt) return "gone";
+  if (!event) return "gone";
   if (event.startsAt.getTime() <= Date.now()) return "started";
   const wantStatus = kind === "cancel" ? "cancelled" : "scheduled";
   if (event.status !== wantStatus) return event.status;
@@ -166,7 +166,7 @@ export async function sendEventMail(
   let event = await getEvent(eventId);
   const revision = kind === "invite" ? 0 : (event?.revision ?? 0);
   let stopped = stopReason(event, kind, revision);
-  if (stopped || !event?.startsAt) return summary;
+  if (stopped || !event) return summary;
 
   const [audience, alreadySent, invited] = await Promise.all([
     getEventAudience(event),
@@ -181,19 +181,16 @@ export async function sendEventMail(
   );
   summary.skipped = audience.length - recipients.length;
 
-  let current: EventRow & { startsAt: Date } = {
-    ...event,
-    startsAt: event.startsAt,
-  };
+  let current: EventRow = event;
   let ics = icsFor(current, kind);
 
   for (const member of recipients) {
     // Re-read right before sending: stop on cancel/start/supersede, refresh on edit.
     event = await getEvent(eventId);
     stopped = stopReason(event, kind, revision);
-    if (stopped || !event?.startsAt) break;
+    if (stopped || !event) break;
     if (event.revision !== current.revision) {
-      current = { ...event, startsAt: event.startsAt };
+      current = event;
       ics = icsFor(current, kind);
     }
 

@@ -72,12 +72,6 @@ describe("permissions", () => {
     ).toBe(false);
   });
 
-  test("external events are not manageable yet", () => {
-    expect(canManageEvent(president, { kind: "external", domain: null })).toBe(
-      false,
-    );
-  });
-
   test("create options follow the grants", () => {
     expect(createOptions(creativesLead)).toEqual({
       club: false,
@@ -164,9 +158,14 @@ describe("format", () => {
   test("formatWhen", () => {
     const s = istToDate("2026-11-18", "17:30");
     const e = istToDate("2026-11-18", "19:00");
+    if (!s || !e) throw new Error("unreachable");
     expect(formatWhen(s, e)).toBe("Wed, 18 Nov 2026 · 05:30 PM – 07:00 PM");
     expect(formatWhen(s, null)).toBe("Wed, 18 Nov 2026 · 05:30 PM");
-    expect(formatWhen(null, null)).toBe("Date TBD");
+    const nextDay = istToDate("2026-11-19", "01:00");
+    if (!nextDay) throw new Error("unreachable");
+    expect(formatWhen(s, nextDay)).toBe(
+      "Wed, 18 Nov 2026 · 05:30 PM – Thu, 19 Nov 2026 · 01:00 AM",
+    );
   });
 
   test("kindLabel", () => {
@@ -176,9 +175,9 @@ describe("format", () => {
 
   test("splitByTime uses the end, and sorts each side", () => {
     const now = new Date("2026-11-18T12:00:00Z");
-    const mk = (id: string, s: string | null, e: string | null) => ({
+    const mk = (id: string, s: string, e: string | null) => ({
       id,
-      startsAt: s ? new Date(s) : null,
+      startsAt: new Date(s),
       endsAt: e ? new Date(e) : null,
     });
     const { upcoming, past } = splitByTime(
@@ -187,11 +186,11 @@ describe("format", () => {
         mk("old", "2026-11-01T10:00:00Z", null),
         mk("older", "2026-10-01T10:00:00Z", null),
         mk("later", "2026-12-01T10:00:00Z", null),
-        mk("tbd", null, null),
+        mk("soon", "2026-11-19T10:00:00Z", null),
       ],
       now,
     );
-    expect(upcoming.map((e) => e.id)).toEqual(["ongoing", "later", "tbd"]);
+    expect(upcoming.map((e) => e.id)).toEqual(["ongoing", "soon", "later"]);
     expect(past.map((e) => e.id)).toEqual(["old", "older"]);
   });
 });
